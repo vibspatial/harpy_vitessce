@@ -36,6 +36,10 @@ def visium_hd(
     cluster_key_display_name: str = "Leiden",
     embedding_key: str = "X_umap",
     embedding_display_name: str = "UMAP",
+    qc_obs_feature_keys: str | list[str] | tuple[str, ...] = (
+        "total_counts",
+        "n_genes_by_counts",
+    ),
     emb_radius_mode: Literal["auto", "manual"] = "auto",
     emb_radius: int = 3,  # ignored if emb_radius_mode is "auto"
 ):
@@ -77,11 +81,14 @@ def visium_hd(
         Key under ``obsm`` used for embedding coordinates, e.g. ``"X_umap"`` -> ``"obsm/X_umap"``.
     embedding_display_name
         Display label for the embedding in the Vitessce UI and scatterplot mapping.
+    qc_obs_feature_keys
+        QC feature keys under ``obs`` exposed in the QC feature list and histogram,
+        e.g. ``("total_counts", "n_genes_by_counts")`` or ``"total_counts"``.
     emb_radius_mode
         Embedding point radius mode. Must be ``"auto"`` or ``"manual"``.
     emb_radius
         Embedding point radius value used by Vitessce. Ignored when
-        ``emb_radius_mode="auto"``).
+        ``emb_radius_mode="auto"``.
 
     Returns
     -------
@@ -93,7 +100,8 @@ def visium_hd(
     ------
     ValueError
         If ``spatial_key`` is empty, ``cluster_key`` is empty, ``embedding_key`` is
-        empty, or ``emb_radius_mode`` is not ``"auto"``/``"manual"``.
+        empty, ``qc_obs_feature_keys`` is empty/contains empty keys, or
+        ``emb_radius_mode`` is not ``"auto"``/``"manual"``.
     """
     if not spatial_key:
         raise ValueError("spatial_key must be a non-empty string.")
@@ -101,6 +109,12 @@ def visium_hd(
         raise ValueError("cluster_key must be a non-empty string.")
     if not embedding_key:
         raise ValueError("embedding_key must be a non-empty string.")
+    if isinstance(qc_obs_feature_keys, str):
+        qc_obs_feature_keys = (qc_obs_feature_keys,)
+    if not qc_obs_feature_keys:
+        raise ValueError("qc_obs_feature_keys must contain at least one key.")
+    if any(not key for key in qc_obs_feature_keys):
+        raise ValueError("qc_obs_feature_keys cannot contain empty keys.")
 
     if emb_radius_mode not in {"auto", "manual"}:
         raise ValueError(
@@ -157,12 +171,7 @@ def visium_hd(
         AnnDataWrapper(
             adata_path=path_adata,
             obs_feature_matrix_path=None,
-            obs_feature_column_paths=[
-                "obs/total_counts",
-                "obs/n_genes_by_counts",
-                # "obs/total_counts_mt",
-                # "obs/pct_counts_mt",
-            ],
+            obs_feature_column_paths=[f"obs/{key}" for key in qc_obs_feature_keys],
             coordination_values={
                 "obsType": "spot",
                 "featureType": "qc",
@@ -226,7 +235,7 @@ def visium_hd(
     obs_color_qc.set_value("geneSelection")  # use feature values for QC
     feat_type_qc.set_value("qc")
     feat_val_type_qc.set_value("qc_value")
-    feat_sel_qc.set_value(["total_counts"])
+    feat_sel_qc.set_value([qc_obs_feature_keys[0]])
     obs_set_sel_qc.set_value(None)
 
     # use coordination
