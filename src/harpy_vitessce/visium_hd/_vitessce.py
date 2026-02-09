@@ -31,9 +31,77 @@ def visium_hd(
     center_y: float | None = None,
     zoom: float | None = -4,  # e.g. -4
     spot_size_micron: int = 16,
+    spatial_key: str = "spatial",  # center of the spots. In micron coordinates
+    cluster_key: str = "leiden",
+    cluster_key_display_name: str = "Leiden",
+    embedding_key: str = "X_umap",
+    embedding_display_name: str = "UMAP",
     emb_radius_mode: Literal["auto", "manual"] = "auto",
     emb_radius: int = 3,  # ignored if emb_radius_mode is "auto"
 ):
+    """
+    Build a Vitessce configuration for exploring Visium HD data.
+
+    Parameters
+    ----------
+    path_img
+        Path to the OME-Zarr image (relative to ``BASE_DIR`` when provided).
+        You can generate this image with
+        :func:`harpy_vitessce.data_utils.xarray_to_ome_zarr` or
+        :func:`harpy_vitessce.data_utils.array_to_ome_zarr`.
+    path_adata
+        Path to the AnnData ``.zarr``/``.h5ad`` source (relative to ``BASE_DIR`` when provided).
+    name
+        Dataset name shown in Vitessce.
+    description
+        Configuration description.
+    schema_version
+        Vitessce schema version.
+    BASE_DIR
+        Optional base directory for relative paths in the config.
+    center_x
+        Initial spatial X target (camera center).
+    center_y
+        Initial spatial Y target (camera center).
+    zoom
+        Initial spatial zoom level. Use ``None`` to keep Vitessce defaults.
+    spot_size_micron
+        Spot diameter in microns; rendered radius is ``spot_size_micron // 2``.
+    spatial_key
+        Key under ``obsm`` used for spot coordinates, e.g. ``"spatial"`` -> ``"obsm/spatial"``.
+    cluster_key
+        Key under ``obs`` used for cluster/cell-set annotations, e.g. ``"leiden"`` -> ``"obs/leiden"``.
+    cluster_key_display_name
+        Display label for the cluster annotation in the Vitessce UI.
+    embedding_key
+        Key under ``obsm`` used for embedding coordinates, e.g. ``"X_umap"`` -> ``"obsm/X_umap"``.
+    embedding_display_name
+        Display label for the embedding in the Vitessce UI and scatterplot mapping.
+    emb_radius_mode
+        Embedding point radius mode. Must be ``"auto"`` or ``"manual"``.
+    emb_radius
+        Embedding point radius value used by Vitessce. Ignored when
+        ``emb_radius_mode="auto"``).
+
+    Returns
+    -------
+    VitessceConfig
+        A configured Vitessce configuration object with spatial, embedding,
+        cluster, gene expression, and QC views.
+
+    Raises
+    ------
+    ValueError
+        If ``spatial_key`` is empty, ``cluster_key`` is empty, ``embedding_key`` is
+        empty, or ``emb_radius_mode`` is not ``"auto"``/``"manual"``.
+    """
+    if not spatial_key:
+        raise ValueError("spatial_key must be a non-empty string.")
+    if not cluster_key:
+        raise ValueError("cluster_key must be a non-empty string.")
+    if not embedding_key:
+        raise ValueError("embedding_key must be a non-empty string.")
+
     if emb_radius_mode not in {"auto", "manual"}:
         raise ValueError(
             "emb_radius_mode must be either 'auto' or 'manual'; "
@@ -71,11 +139,11 @@ def visium_hd(
         AnnDataWrapper(
             adata_path=path_adata,
             obs_feature_matrix_path="X",
-            obs_spots_path="obsm/spatial",
-            obs_set_paths=["obs/leiden"],
-            obs_set_names=["Leiden"],  # display name in UI
-            obs_embedding_paths=["obsm/X_umap"],
-            obs_embedding_names=["UMAP"],
+            obs_spots_path=f"obsm/{spatial_key}",
+            obs_set_paths=[f"obs/{cluster_key}"],
+            obs_set_names=[cluster_key_display_name],  # display name in UI
+            obs_embedding_paths=[f"obsm/{embedding_key}"],
+            obs_embedding_names=[embedding_display_name],
             coordination_values={
                 "obsType": "spot",
                 "featureType": "gene",
@@ -110,7 +178,7 @@ def visium_hd(
     layer_controller = vc.add_view("layerControllerBeta", dataset=dataset)
     genes = vc.add_view(cm.FEATURE_LIST, dataset=dataset)
     cell_sets = vc.add_view(cm.OBS_SETS, dataset=dataset)
-    umap = vc.add_view(cm.SCATTERPLOT, dataset=dataset, mapping="UMAP")
+    umap = vc.add_view(cm.SCATTERPLOT, dataset=dataset, mapping=embedding_display_name)
     # qc
     histogram = vc.add_view(cm.FEATURE_VALUE_HISTOGRAM, dataset=dataset)
     # qc (spatial only; not linked to UMAP)
