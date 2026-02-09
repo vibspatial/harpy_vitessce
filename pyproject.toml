@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "harpy-vitessce"
+version = "0.1.0"
+description = "Utilities for working with Harpy and Vitessce data."
+requires-python = ">=3.10"
+dependencies = [
+    "spatialdata",
+    "setuptools<82",
+    "harpy-analysis",
+    "loguru",
+]
+
+[project.optional-dependencies]
+vitessce = ["vitessce"]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
