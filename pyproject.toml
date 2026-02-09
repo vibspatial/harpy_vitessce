@@ -15,7 +15,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-vitessce = ["vitessce"]
+vitessce = ["vitessce[all]>=3.8.0"]
+#pip install -e ".[vitessce]"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
