@@ -32,8 +32,14 @@ def visium_hd(
     zoom: float | None = -4,  # e.g. -4
     spot_size_micron: int = 16,
     emb_radius_mode: Literal["auto", "manual"] = "auto",
-    umap_radius: int = 3,
+    emb_radius: int = 3,  # ignored if emb_radius_mode is "auto"
 ):
+    if emb_radius_mode not in {"auto", "manual"}:
+        raise ValueError(
+            "emb_radius_mode must be either 'auto' or 'manual'; "
+            f"got {emb_radius_mode!r}."
+        )
+
     # default to BASE_DIR "/" if None?. Do not set to None by default?
     vc = VitessceConfig(
         schema_version=schema_version,
@@ -131,13 +137,13 @@ def visium_hd(
     obs_color.set_value("cellSetSelection")
     obs_set_sel.set_value(None)
 
-    emb_radius_mode, emb_radius = vc.add_coordination(
+    emb_radius_mode_coord, emb_radius_coord = vc.add_coordination(
         ct.EMBEDDING_OBS_RADIUS_MODE,
         ct.EMBEDDING_OBS_RADIUS,
     )
 
-    emb_radius_mode.set_value("auto")  # or "manual"
-    emb_radius.set_value(umap_radius)
+    emb_radius_mode_coord.set_value(emb_radius_mode)
+    emb_radius_coord.set_value(emb_radius)
 
     # coordinate views spatial (qc)
     obs_color_qc, feat_type_qc, feat_val_type_qc, feat_sel_qc, obs_set_sel_qc = (
@@ -170,8 +176,8 @@ def visium_hd(
         obs_color,
         feat_sel,
         obs_set_sel,
-        emb_radius_mode,
-        emb_radius,
+        emb_radius_mode_coord,
+        emb_radius_coord,
     )
     # qc
     spatial_qc.use_coordination(
