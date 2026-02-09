@@ -1,3 +1,7 @@
+import uuid
+from pathlib import Path
+from typing import Literal
+
 from vitessce import (
     AnnDataWrapper,
     ImageOmeZarrWrapper,
@@ -15,27 +19,24 @@ from vitessce import (
     CoordinationType as ct,
 )
 
-from pathlib import Path
-
 
 def visium_hd(
     path_img: str | Path,  # relative to BASE_DIR
     path_adata: str | Path,  # relative to BASE_DIR
-    name: str = "Benchmark",
+    name: str = "Visium HD",
     description: str = "Visium HD",
     schema_version: str = "1.0.18",
     BASE_DIR: str | Path | None = None,
     center_x: float | None = None,
     center_y: float | None = None,
     zoom: float | None = -4,  # e.g. -4
+    spot_size_micron: int = 16,
+    emb_radius_mode: Literal["auto", "manual"] = "auto",
+    umap_radius: int = 3,
 ):
     # default to BASE_DIR "/" if None?. Do not set to None by default?
-    spot_size_micron = 16
-    umap_radius = 3
-
     vc = VitessceConfig(
         schema_version=schema_version,
-        name=name,
         description=description,
         base_dir=BASE_DIR,
     )
@@ -52,10 +53,11 @@ def visium_hd(
         spatial_target_x.set_value(center_x)
         spatial_target_y.set_value(center_y)
 
-    dataset = vc.add_dataset(name="Liver dataset").add_object(
+    _file_uuid = f"img_h&e_{uuid.uuid4()}"  # can be set to any value
+    dataset = vc.add_dataset(name=name).add_object(
         ImageOmeZarrWrapper(
             img_path=path_img,
-            coordination_values={"fileUid": "img1"},
+            coordination_values={"fileUid": _file_uuid},
         )
     )
 
@@ -127,14 +129,14 @@ def visium_hd(
     feat_val_type.set_value("expression")
     # Color by Leiden (cell sets), not by gene selection
     obs_color.set_value("cellSetSelection")
-    # feat_sel.set_value([str(adata.var_names[0])]) # initialize with an existing gene
     obs_set_sel.set_value(None)
 
     emb_radius_mode, emb_radius = vc.add_coordination(
         ct.EMBEDDING_OBS_RADIUS_MODE,
         ct.EMBEDDING_OBS_RADIUS,
     )
-    emb_radius_mode.set_value("auto")  # or "auto"
+
+    emb_radius_mode.set_value("auto")  # or "manual"
     emb_radius.set_value(umap_radius)
 
     # coordinate views spatial (qc)
@@ -199,7 +201,7 @@ def visium_hd(
             "imageLayer": CL(
                 [
                     {
-                        "fileUid": "img1",
+                        "fileUid": _file_uuid,
                         "spatialLayerVisible": True,
                         "spatialLayerOpacity": 1.0,
                         "photometricInterpretation": "RGB",
@@ -209,14 +211,14 @@ def visium_hd(
             "spotLayer": CL(
                 [
                     {
-                        "obsType": obs_type,  # or "spot"
+                        "obsType": obs_type,
                         "spatialLayerVisible": True,
                         "spatialLayerOpacity": 1.0,
                         "spatialSpotRadius": spot_size_micron // 2,
                         "spatialSpotFilled": True,
                         "spatialSpotStrokeWidth": 1.0,
                         "spatialLayerColor": [255, 255, 255],
-                        # NOTE: no obsColorEncoding / featureSelection here!
+                        # NOTE: no obsColorEncoding / featureSelection
                         "tooltipsVisible": True,
                         "tooltipCrosshairsVisible": True,
                     }
