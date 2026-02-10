@@ -67,6 +67,11 @@ def visium_hd(
         :func:`harpy_vitessce.data_utils.array_to_ome_zarr`.
     path_adata
         Path to the AnnData ``.zarr``/``.h5ad`` source (relative to ``base_dir`` when provided).
+        Required fields in this AnnData object are:
+        ``obsm/{spatial_key}``, ``obs/{cluster_key}``, ``obsm/{embedding_key}``,
+        and ``obs/{key}`` for each entry in ``qc_obs_feature_keys``.
+        If any are missing, Vitessce data loading/view rendering will fail
+        for the corresponding component.
     name
         Dataset name shown in Vitessce.
     description
