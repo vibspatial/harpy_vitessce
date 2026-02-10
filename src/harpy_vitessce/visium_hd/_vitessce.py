@@ -26,9 +26,8 @@ def visium_hd(
     name: str = "Visium HD",
     description: str = "Visium HD",
     schema_version: str = "1.0.18",
-    BASE_DIR: str | Path | None = None,
-    center_x: float | None = None,
-    center_y: float | None = None,
+    base_dir: str | Path | None = None,
+    center: tuple[float, float] | None = None,
     zoom: float | None = -4,  # e.g. -4
     spot_size_micron: int = 16,
     spatial_key: str = "spatial",  # center of the spots. In micron coordinates
@@ -61,12 +60,11 @@ def visium_hd(
         Configuration description.
     schema_version
         Vitessce schema version.
-    BASE_DIR
+    base_dir
         Optional base directory for relative paths in the config.
-    center_x
-        Initial spatial X target (camera center).
-    center_y
-        Initial spatial Y target (camera center).
+    center
+        Initial spatial target as ``(x, y)`` camera center coordinates.
+        Use ``None`` to keep Vitessce defaults.
     zoom
         Initial spatial zoom level. Use ``None`` to keep Vitessce defaults.
     spot_size_micron
@@ -101,7 +99,8 @@ def visium_hd(
     ValueError
         If ``spatial_key`` is empty, ``cluster_key`` is empty, ``embedding_key`` is
         empty, ``qc_obs_feature_keys`` is empty/contains empty keys, or
-        ``emb_radius_mode`` is not ``"auto"``/``"manual"``.
+        ``emb_radius_mode`` is not ``"auto"``/``"manual"``, or ``center`` is not a
+        2-item tuple.
     """
     if not spatial_key:
         raise ValueError("spatial_key must be a non-empty string.")
@@ -121,12 +120,14 @@ def visium_hd(
             "emb_radius_mode must be either 'auto' or 'manual'; "
             f"got {emb_radius_mode!r}."
         )
+    if center is not None and len(center) != 2:
+        raise ValueError("center must be a tuple of two floats: (x, y).")
 
     # default to BASE_DIR "/" if None?. Do not set to None by default?
     vc = VitessceConfig(
         schema_version=schema_version,
         description=description,
-        base_dir=BASE_DIR,
+        base_dir=base_dir,
     )
 
     spatial_zoom, spatial_target_x, spatial_target_y = vc.add_coordination(
@@ -137,9 +138,9 @@ def visium_hd(
 
     if zoom is not None:
         spatial_zoom.set_value(zoom)
-    if center_x is not None and center_y is not None:
-        spatial_target_x.set_value(center_x)
-        spatial_target_y.set_value(center_y)
+    if center is not None:
+        spatial_target_x.set_value(center[0])
+        spatial_target_y.set_value(center[1])
 
     # h&e
     _file_uuid = f"img_h&e_{uuid.uuid4()}"  # can be set to any value
