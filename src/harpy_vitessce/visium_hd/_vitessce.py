@@ -120,6 +120,21 @@ def visium_hd(
         ``emb_radius_mode`` is not ``"auto"``/``"manual"``, or ``center`` is not a
         2-item tuple, or ``spot_size_micron <= 0``, or ``emb_radius <= 0`` when
         ``emb_radius_mode="manual"``.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        from IPython.display import display, HTML
+
+        vc = visium_hd(
+            path_img="data/sample_image.ome.zarr",
+            path_adata="data/sample_adata.zarr",
+            qc_obs_feature_keys=("total_counts", "pct_counts_mt"),
+        )
+        url = vc.web_app()
+        display(HTML(f'<a href="{url}" target="_blank">Open in Vitessce</a>'))
+
     """
     if not spatial_key:
         raise ValueError("spatial_key must be a non-empty string.")
