@@ -21,6 +21,7 @@ docs = [
     "sphinx-book-theme>=1.0.0",
     "sphinx_rtd_theme",
     "myst-nb",
+    "ipython",
     "sphinxcontrib-bibtex>=1.0.0",
     "sphinx-autodoc-typehints",
     "sphinx-design",
