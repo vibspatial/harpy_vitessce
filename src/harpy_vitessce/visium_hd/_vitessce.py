@@ -19,6 +19,19 @@ from vitessce import (
     CoordinationType as ct,
 )
 
+# these are vitessce constants
+SPATIAL_VIEW = "spatialBeta"
+LAYER_CONTROLLER_VIEW = "layerControllerBeta"
+OBS_TYPE_SPOT = "spot"
+OBS_COLOR_CELL_SET_SELECTION = "cellSetSelection"
+OBS_COLOR_GENE_SELECTION = "geneSelection"
+
+# following can be changed:
+FEATURE_TYPE_GENE = "gene"
+FEATURE_VALUE_TYPE_EXPRESSION = "expression"
+FEATURE_TYPE_QC = "qc"
+FEATURE_VALUE_TYPE_QC = "qc_value"
+
 
 def visium_hd(
     path_img: str | Path,  # relative to base_dir
@@ -169,9 +182,9 @@ def visium_hd(
             obs_embedding_paths=[f"obsm/{embedding_key}"],
             obs_embedding_names=[embedding_display_name],
             coordination_values={
-                "obsType": "spot",
-                "featureType": "gene",
-                "featureValueType": "expression",
+                "obsType": OBS_TYPE_SPOT,
+                "featureType": FEATURE_TYPE_GENE,
+                "featureValueType": FEATURE_VALUE_TYPE_EXPRESSION,
             },
         )
     )
@@ -183,26 +196,26 @@ def visium_hd(
             obs_feature_matrix_path=None,
             obs_feature_column_paths=[f"obs/{key}" for key in qc_obs_feature_keys],
             coordination_values={
-                "obsType": "spot",
-                "featureType": "qc",
-                "featureValueType": "qc_value",
+                "obsType": OBS_TYPE_SPOT,
+                "featureType": FEATURE_TYPE_QC,
+                "featureValueType": FEATURE_VALUE_TYPE_QC,
             },
         )
     )
 
     # 1) create views:
     # i) clusters + genes
-    spatial_plot = vc.add_view("spatialBeta", dataset=dataset)
+    spatial_plot = vc.add_view(SPATIAL_VIEW, dataset=dataset)
     spatial_plot.set_props(
         title=f"{cluster_key_display_name} Clusters + Gene Expression"
     )
-    layer_controller = vc.add_view("layerControllerBeta", dataset=dataset)
+    layer_controller = vc.add_view(LAYER_CONTROLLER_VIEW, dataset=dataset)
     genes = vc.add_view(cm.FEATURE_LIST, dataset=dataset)
     cell_sets = vc.add_view(cm.OBS_SETS, dataset=dataset)
     umap = vc.add_view(cm.SCATTERPLOT, dataset=dataset, mapping=embedding_display_name)
     # ii) qc
     histogram = vc.add_view(cm.FEATURE_VALUE_HISTOGRAM, dataset=dataset)
-    spatial_qc = vc.add_view("spatialBeta", dataset=dataset)
+    spatial_qc = vc.add_view(SPATIAL_VIEW, dataset=dataset)
     spatial_qc.set_props(title="QC")
     qc_list = vc.add_view(cm.FEATURE_LIST, dataset=dataset)
     qc_list.set_props(title="QC list")
@@ -219,11 +232,13 @@ def visium_hd(
             ct.OBS_SET_SELECTION,
         )
     )
-    obs_type.set_value("spot")
-    feat_type.set_value("gene")  # defined in coordination_values when we add addata
-    feat_val_type.set_value("expression")
+    obs_type.set_value(OBS_TYPE_SPOT)
+    feat_type.set_value(
+        FEATURE_TYPE_GENE
+    )  # defined in coordination_values when we add addata
+    feat_val_type.set_value(FEATURE_VALUE_TYPE_EXPRESSION)
     # color by clusters (cell sets), not by gene selection
-    obs_color.set_value("cellSetSelection")
+    obs_color.set_value(OBS_COLOR_CELL_SET_SELECTION)
     obs_set_sel.set_value(None)
 
     emb_radius_mode_coord, emb_radius_coord = vc.add_coordination(
@@ -244,9 +259,9 @@ def visium_hd(
             ct.OBS_SET_SELECTION,
         )
     )
-    obs_color_qc.set_value("geneSelection")  # use feature values for QC
-    feat_type_qc.set_value("qc")
-    feat_val_type_qc.set_value("qc_value")
+    obs_color_qc.set_value(OBS_COLOR_GENE_SELECTION)  # use feature values for QC
+    feat_type_qc.set_value(FEATURE_TYPE_QC)
+    feat_val_type_qc.set_value(FEATURE_VALUE_TYPE_QC)
     feat_sel_qc.set_value([qc_obs_feature_keys[0]])
     obs_set_sel_qc.set_value(None)
 
