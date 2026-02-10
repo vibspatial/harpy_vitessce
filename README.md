@@ -19,18 +19,22 @@ Install the current `main` branch:
 ```bash
 uv venv .venv_harpy_vitessce_zarr2 --python=3.12
 source .venv_harpy_vitessce_zarr_2/bin/activate
-uv pip install "git+https://github.com/vibspatial/harpy_vitessce.git@main"
+uv pip install "harpy-vitessce[vitessce] @ git+https://github.com/vibspatial/harpy_vitessce.git@main"
 ```
 
 If you want to add it as a project dependency managed by `uv`:
 
 ```bash
-uv add "harpy-vitessce @ git+https://github.com/vibspatial/harpy_vitessce.git@main"
+uv add "harpy-vitessce[vitessce] @ git+https://github.com/vibspatial/harpy_vitessce.git@main"
 ```
 
 # Documentation
 
 Visium HD [example](./docs/tutorials/visium_hd/visium_hd.ipynb).
+
+# Example:
+
+Example visualization for Visium HD can be found [here](https://vib-data-core.github.io/vitessce/?url=spatial-hackathon-public/sparrow/public_datasets/transcriptomics/visium_hd/config_visium_hd_benchmark_s3_10_2_26.json).
 
 ## Disclaimer
 

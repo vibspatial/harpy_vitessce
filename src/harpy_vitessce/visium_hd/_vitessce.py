@@ -51,8 +51,8 @@ def _normalize_path_or_url(path: str | Path, name: str) -> tuple[str, bool]:
 
 
 def visium_hd(
-    path_img: str | Path,  # local path relative to base_dir or remote URL
-    path_adata: str | Path,  # local path relative to base_dir or remote URL
+    img_source: str | Path,  # local path relative to base_dir or remote URL
+    adata_source: str | Path,  # local path relative to base_dir or remote URL
     name: str = "Visium HD",
     description: str = "Visium HD",
     schema_version: str = "1.0.18",
@@ -77,13 +77,13 @@ def visium_hd(
 
     Parameters
     ----------
-    path_img
+    img_source
         Path/URL to the OME-Zarr image. Local paths are relative to ``base_dir``
         when provided.
         You can generate this image with
         :func:`harpy_vitessce.data_utils.xarray_to_ome_zarr` or
         :func:`harpy_vitessce.data_utils.array_to_ome_zarr`.
-    path_adata
+    adata_source
         Path/URL to the AnnData ``.zarr``/``.h5ad`` source. Local paths are
         relative to ``base_dir`` when provided.
         Required field is ``obsm/{spatial_key}``.
@@ -99,7 +99,7 @@ def visium_hd(
         Vitessce schema version.
     base_dir
         Optional base directory for relative local paths in the config.
-        Remote URLs are used as-is. When both ``path_img`` and ``path_adata``
+        Remote URLs are used as-is. When both ``img_source`` and ``adata_source``
         are remote URLs, ``base_dir`` is ignored and set to ``None`` in the
         generated Vitessce config.
     center
@@ -154,8 +154,8 @@ def visium_hd(
 
         vc = visium_hd(
             base_dir="/your/path/"
-            path_img="data/sample_image.ome.zarr", # relative to base_dir
-            path_adata="data/sample_adata.zarr", # relative to base_dir
+            img_source="data/sample_image.ome.zarr", # relative to base_dir
+            adata_source="data/sample_adata.zarr", # relative to base_dir
             qc_obs_feature_keys=("total_counts", "pct_counts_mt"),
         )
         url = vc.web_app()
@@ -187,8 +187,10 @@ def visium_hd(
     cluster_key = _normalize_optional_key(cluster_key, "cluster_key")
     embedding_key = _normalize_optional_key(embedding_key, "embedding_key")
     qc_obs_feature_keys = _normalize_qc_keys(qc_obs_feature_keys)
-    path_img, is_img_remote = _normalize_path_or_url(path_img, "path_img")
-    path_adata, is_adata_remote = _normalize_path_or_url(path_adata, "path_adata")
+    img_source, is_img_remote = _normalize_path_or_url(img_source, "img_source")
+    adata_source, is_adata_remote = _normalize_path_or_url(
+        adata_source, "adata_source"
+    )
 
     has_clusters = cluster_key is not None
     has_embedding = embedding_key is not None
@@ -233,13 +235,13 @@ def visium_hd(
 
     # h&e
     _file_uuid = f"img_h&e_{uuid.uuid4()}"  # can be set to any value
-    image_wrapper_kwargs: dict[str, object] = {
+    img_wrapper_kwargs: dict[str, object] = {
         "coordination_values": {"fileUid": _file_uuid},
     }
-    image_wrapper_kwargs["img_url" if is_img_remote else "img_path"] = path_img
+    img_wrapper_kwargs["img_url" if is_img_remote else "img_path"] = img_source
     dataset = vc.add_dataset(name=name).add_object(
         ImageOmeZarrWrapper(
-            **image_wrapper_kwargs,
+            **img_wrapper_kwargs,
         )
     )
 
@@ -254,7 +256,7 @@ def visium_hd(
         },
     }
     expression_wrapper_kwargs["adata_url" if is_adata_remote else "adata_path"] = (
-        path_adata
+        adata_source
     )
     if has_clusters:
         expression_wrapper_kwargs["obs_set_paths"] = [f"obs/{cluster_key}"]
@@ -284,7 +286,7 @@ def visium_hd(
             },
         }
         qc_wrapper_kwargs["adata_url" if is_adata_remote else "adata_path"] = (
-            path_adata
+            adata_source
         )
         dataset.add_object(
             AnnDataWrapper(

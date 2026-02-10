@@ -14,6 +14,11 @@ section#harpy-vitessce > h1 {
 > Build interactive views for spatial data and share reproducible Vitessce
 > configurations from Harpy-compatible datasets.
 
+## Example
+
+Example visualization for Visium HD can be found
+[here](https://vib-data-core.github.io/vitessce/?url=spatial-hackathon-public/sparrow/public_datasets/transcriptomics/visium_hd/config_visium_hd_benchmark_s3_10_2_26.json).
+
 ```{eval-rst}
 .. card:: Tutorials
     :link: tutorials/index
