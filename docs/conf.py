@@ -5,6 +5,8 @@ extensions = [
     "myst_nb",
 ]
 
+html_theme = "sphinx_book_theme"
+
 root_doc = "index"
 source_suffix = [".rst", ".md", ".ipynb"]
 
