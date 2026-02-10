@@ -19,14 +19,14 @@ from vitessce import (
     CoordinationType as ct,
 )
 
-# these are vitessce constants
+# Vitessce component identifiers used by this config.
 SPATIAL_VIEW = "spatialBeta"
 LAYER_CONTROLLER_VIEW = "layerControllerBeta"
 OBS_TYPE_SPOT = "spot"
 OBS_COLOR_CELL_SET_SELECTION = "cellSetSelection"
 OBS_COLOR_GENE_SELECTION = "geneSelection"
 
-# following can be changed:
+# Vitessce coordination defaults used by this config (i.e. can be changed).
 FEATURE_TYPE_GENE = "gene"
 FEATURE_VALUE_TYPE_EXPRESSION = "expression"
 FEATURE_TYPE_QC = "qc"
@@ -54,7 +54,7 @@ def visium_hd(
     ),
     emb_radius_mode: Literal["auto", "manual"] = "auto",
     emb_radius: int = 3,  # ignored if emb_radius_mode is "auto"
-):
+) -> VitessceConfig:
     """
     Build a Vitessce configuration for exploring Visium HD data.
 
@@ -128,8 +128,9 @@ def visium_hd(
         from IPython.display import display, HTML
 
         vc = visium_hd(
-            path_img="data/sample_image.ome.zarr",
-            path_adata="data/sample_adata.zarr",
+            base_dir="/your/path/"
+            path_img="data/sample_image.ome.zarr", # relative to base_dir
+            path_adata="data/sample_adata.zarr", # relative to base_dir
             qc_obs_feature_keys=("total_counts", "pct_counts_mt"),
         )
         url = vc.web_app()
@@ -163,7 +164,6 @@ def visium_hd(
     if center is not None and len(center) != 2:
         raise ValueError("center must be a tuple of two floats: (x, y).")
 
-    # default to base_dir "/" if None?. Do not set to None by default?
     vc = VitessceConfig(
         schema_version=schema_version,
         description=description,
