@@ -141,6 +141,7 @@ def visium_hd(
         spatial_target_x.set_value(center_x)
         spatial_target_y.set_value(center_y)
 
+    # h&e
     _file_uuid = f"img_h&e_{uuid.uuid4()}"  # can be set to any value
     dataset = vc.add_dataset(name=name).add_object(
         ImageOmeZarrWrapper(
@@ -149,6 +150,7 @@ def visium_hd(
         )
     )
 
+    # clusters + genes
     dataset.add_object(
         AnnDataWrapper(
             adata_path=path_adata,
@@ -166,7 +168,7 @@ def visium_hd(
         )
     )
 
-    # QC / obs features
+    # qc
     dataset.add_object(
         AnnDataWrapper(
             adata_path=path_adata,
@@ -180,23 +182,25 @@ def visium_hd(
         )
     )
 
-    # 1) views:
-    # leiden + genes)
+    # 1) create views:
+    # i) clusters + genes
     spatial_plot = vc.add_view("spatialBeta", dataset=dataset)
-    spatial_plot.set_props(title="Leiden Clusters + Gene Expression")
+    spatial_plot.set_props(
+        title=f"{cluster_key_display_name} Clusters + Gene Expression"
+    )
     layer_controller = vc.add_view("layerControllerBeta", dataset=dataset)
     genes = vc.add_view(cm.FEATURE_LIST, dataset=dataset)
     cell_sets = vc.add_view(cm.OBS_SETS, dataset=dataset)
     umap = vc.add_view(cm.SCATTERPLOT, dataset=dataset, mapping=embedding_display_name)
-    # qc
+    # ii) qc
     histogram = vc.add_view(cm.FEATURE_VALUE_HISTOGRAM, dataset=dataset)
-    # qc (spatial only; not linked to UMAP)
     spatial_qc = vc.add_view("spatialBeta", dataset=dataset)
     spatial_qc.set_props(title="QC")
     qc_list = vc.add_view(cm.FEATURE_LIST, dataset=dataset)
     qc_list.set_props(title="QC list")
 
-    # coordinate views spatial (Leiden + genes)
+    # 2) add coordination (that will then be used on the views)
+    # i) clusters + genes
     obs_type, feat_type, feat_val_type, obs_color, feat_sel, obs_set_sel = (
         vc.add_coordination(
             ct.OBS_TYPE,
@@ -210,7 +214,7 @@ def visium_hd(
     obs_type.set_value("spot")
     feat_type.set_value("gene")  # defined in coordination_values when we add addata
     feat_val_type.set_value("expression")
-    # Color by Leiden (cell sets), not by gene selection
+    # color by clusters (cell sets), not by gene selection
     obs_color.set_value("cellSetSelection")
     obs_set_sel.set_value(None)
 
@@ -222,7 +226,7 @@ def visium_hd(
     emb_radius_mode_coord.set_value(emb_radius_mode)
     emb_radius_coord.set_value(emb_radius)
 
-    # coordinate views spatial (qc)
+    # ii) qc
     obs_color_qc, feat_type_qc, feat_val_type_qc, feat_sel_qc, obs_set_sel_qc = (
         vc.add_coordination(
             ct.OBS_COLOR_ENCODING,
@@ -238,8 +242,8 @@ def visium_hd(
     feat_sel_qc.set_value([qc_obs_feature_keys[0]])
     obs_set_sel_qc.set_value(None)
 
-    # use coordination
-    # spatial (leiden + genes)
+    # 3) use coordination on the views
+    # i) clusters + genes
     spatial_plot.use_coordination(
         obs_type, feat_type, feat_val_type, obs_color, feat_sel, obs_set_sel
     )
@@ -256,7 +260,7 @@ def visium_hd(
         emb_radius_mode_coord,
         emb_radius_coord,
     )
-    # qc
+    # ii) qc
     spatial_qc.use_coordination(
         obs_type,
         obs_color_qc,
@@ -275,9 +279,11 @@ def visium_hd(
         feat_val_type_qc,
         feat_sel_qc,
         # obs_color_qc,
-        # obs_set_sel_qc # check if this would work
+        # obs_set_sel_qc # this does not work -> lasso on the qc is not passed to qc
     )
 
+    # note that it is also possible to create two spotlayers, one for qc, one for clusters+genes
+    #  but then we need two layer controllers, which looks weird in the UI
     vc.link_views_by_dict(
         [spatial_plot, spatial_qc, layer_controller],
         {
