@@ -21,8 +21,8 @@ from vitessce import (
 
 
 def visium_hd(
-    path_img: str | Path,  # relative to BASE_DIR
-    path_adata: str | Path,  # relative to BASE_DIR
+    path_img: str | Path,  # relative to base_dir
+    path_adata: str | Path,  # relative to base_dir
     name: str = "Visium HD",
     description: str = "Visium HD",
     schema_version: str = "1.0.18",
@@ -48,12 +48,12 @@ def visium_hd(
     Parameters
     ----------
     path_img
-        Path to the OME-Zarr image (relative to ``BASE_DIR`` when provided).
+        Path to the OME-Zarr image (relative to ``base_dir`` when provided).
         You can generate this image with
         :func:`harpy_vitessce.data_utils.xarray_to_ome_zarr` or
         :func:`harpy_vitessce.data_utils.array_to_ome_zarr`.
     path_adata
-        Path to the AnnData ``.zarr``/``.h5ad`` source (relative to ``BASE_DIR`` when provided).
+        Path to the AnnData ``.zarr``/``.h5ad`` source (relative to ``base_dir`` when provided).
     name
         Dataset name shown in Vitessce.
     description
@@ -100,7 +100,8 @@ def visium_hd(
         If ``spatial_key`` is empty, ``cluster_key`` is empty, ``embedding_key`` is
         empty, ``qc_obs_feature_keys`` is empty/contains empty keys, or
         ``emb_radius_mode`` is not ``"auto"``/``"manual"``, or ``center`` is not a
-        2-item tuple.
+        2-item tuple, or ``spot_size_micron <= 0``, or ``emb_radius <= 0`` when
+        ``emb_radius_mode="manual"``.
     """
     if not spatial_key:
         raise ValueError("spatial_key must be a non-empty string.")
@@ -120,10 +121,16 @@ def visium_hd(
             "emb_radius_mode must be either 'auto' or 'manual'; "
             f"got {emb_radius_mode!r}."
         )
+    if spot_size_micron <= 0:
+        raise ValueError(
+            "spot_size_micron must be > 0 so spatial spot radius is valid."
+        )
+    if emb_radius_mode == "manual" and emb_radius <= 0:
+        raise ValueError("emb_radius must be > 0 when emb_radius_mode='manual'.")
     if center is not None and len(center) != 2:
         raise ValueError("center must be a tuple of two floats: (x, y).")
 
-    # default to BASE_DIR "/" if None?. Do not set to None by default?
+    # default to base_dir "/" if None?. Do not set to None by default?
     vc = VitessceConfig(
         schema_version=schema_version,
         description=description,
