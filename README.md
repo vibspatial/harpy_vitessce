@@ -12,18 +12,9 @@
 
 `Harpy-Vitessce` provides utilities to move from Harpy outputs to shareable Vitessce configurations.
 
-## Documentation
+# Documentation
 
-- Landing page and tutorials are available in `docs/`.
-- Main tutorial: `docs/tutorials/visium_hd/visium_hd.ipynb`
-
-### Build Docs Locally
-
-See: [`docs/BUILD_DOCS.md`](docs/BUILD_DOCS.md)
-
-### Publish Docs Publicly (Read the Docs)
-
-See: [`docs/BUILD_DOCS.md`](docs/BUILD_DOCS.md)
+Visium HD [example](./docs/tutorials/visium_hd/visium_hd.ipynb).
 
 ## Disclaimer
 
