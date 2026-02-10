@@ -7,7 +7,7 @@ section#harpy-vitessce > h1 {
 </style>
 
 <div align="center">
-  <img src="_static/logo.png" alt="harpy-vitessce logo" width="220" />
+  <img class="dark-light" src="_static/logo.png" alt="harpy-vitessce logo" width="220" />
   <p><strong><span style="font-size:1.8em;">Interactive Vitessce visualizations for Harpy workflows.</span></strong></p>
 </div>
 
