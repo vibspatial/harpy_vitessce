@@ -1,6 +1,6 @@
 import uuid
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Sequence
 
 from vitessce import (
     AnnDataWrapper,
@@ -44,11 +44,11 @@ def visium_hd(
     zoom: float | None = -4,  # e.g. -4
     spot_size_micron: int = 16,
     spatial_key: str = "spatial",  # center of the spots. In micron coordinates
-    cluster_key: str = "leiden",
+    cluster_key: str | None = "leiden",
     cluster_key_display_name: str = "Leiden",
-    embedding_key: str = "X_umap",
+    embedding_key: str | None = "X_umap",
     embedding_display_name: str = "UMAP",
-    qc_obs_feature_keys: str | list[str] | tuple[str, ...] = (
+    qc_obs_feature_keys: str | Sequence[str] | None = (
         "total_counts",
         "n_genes_by_counts",
     ),
@@ -67,11 +67,11 @@ def visium_hd(
         :func:`harpy_vitessce.data_utils.array_to_ome_zarr`.
     path_adata
         Path to the AnnData ``.zarr``/``.h5ad`` source (relative to ``base_dir`` when provided).
-        Required fields in this AnnData object are:
-        ``obsm/{spatial_key}``, ``obs/{cluster_key}``, ``obsm/{embedding_key}``,
+        Required field is ``obsm/{spatial_key}``.
+        Optional fields are ``obs/{cluster_key}``, ``obsm/{embedding_key}``,
         and ``obs/{key}`` for each entry in ``qc_obs_feature_keys``.
-        If any are missing, Vitessce data loading/view rendering will fail
-        for the corresponding component.
+        When optional keys are provided, missing fields will still cause Vitessce
+        data loading/view rendering failures for the corresponding component.
     name
         Dataset name shown in Vitessce.
     description
@@ -91,15 +91,18 @@ def visium_hd(
         Key under ``obsm`` used for spot coordinates, e.g. ``"spatial"`` -> ``"obsm/spatial"``.
     cluster_key
         Key under ``obs`` used for cluster/cell-set annotations, e.g. ``"leiden"`` -> ``"obs/leiden"``.
+        Set to ``None`` to disable cluster/cell-set views and color encoding.
     cluster_key_display_name
         Display label for the cluster annotation in the Vitessce UI.
     embedding_key
         Key under ``obsm`` used for embedding coordinates, e.g. ``"X_umap"`` -> ``"obsm/X_umap"``.
+        Set to ``None`` to disable the embedding scatterplot view.
     embedding_display_name
         Display label for the embedding in the Vitessce UI and scatterplot mapping.
     qc_obs_feature_keys
         QC feature keys under ``obs`` exposed in the QC feature list and histogram,
         e.g. ``("total_counts", "n_genes_by_counts")`` or ``"total_counts"``.
+        Set to ``None`` (or an empty sequence) to disable QC views.
     emb_radius_mode
         Embedding point radius mode. Must be ``"auto"`` or ``"manual"``.
     emb_radius
@@ -109,14 +112,14 @@ def visium_hd(
     Returns
     -------
     VitessceConfig
-        A configured Vitessce configuration object with spatial, embedding,
-        cluster, gene expression, and QC views.
+        A configured Vitessce configuration object with spatial and gene
+        expression views, plus optional cluster/embedding/QC views.
 
     Raises
     ------
     ValueError
-        If ``spatial_key`` is empty, ``cluster_key`` is empty, ``embedding_key`` is
-        empty, ``qc_obs_feature_keys`` is empty/contains empty keys, or
+        If ``spatial_key`` is empty, a provided ``cluster_key``/``embedding_key`` is
+        empty, ``qc_obs_feature_keys`` contains empty keys, or
         ``emb_radius_mode`` is not ``"auto"``/``"manual"``, or ``center`` is not a
         2-item tuple, or ``spot_size_micron <= 0``, or ``emb_radius <= 0`` when
         ``emb_radius_mode="manual"``.
@@ -139,18 +142,35 @@ def visium_hd(
     """
     if not spatial_key:
         raise ValueError("spatial_key must be a non-empty string.")
-    if not cluster_key:
-        raise ValueError("cluster_key must be a non-empty string.")
-    if not embedding_key:
-        raise ValueError("embedding_key must be a non-empty string.")
-    if isinstance(qc_obs_feature_keys, str):
-        qc_obs_feature_keys = (qc_obs_feature_keys,)
-    if not qc_obs_feature_keys:
-        raise ValueError("qc_obs_feature_keys must contain at least one key.")
-    if any(not key for key in qc_obs_feature_keys):
-        raise ValueError("qc_obs_feature_keys cannot contain empty keys.")
 
-    if emb_radius_mode not in {"auto", "manual"}:
+    def _normalize_optional_key(key: str | None, name: str) -> str | None:
+        if key is None:
+            return None
+        if not key:
+            raise ValueError(f"{name} must be a non-empty string when provided.")
+        return key
+
+    def _normalize_qc_keys(
+        keys: str | Sequence[str] | None,
+    ) -> tuple[str, ...]:
+        if keys is None:
+            return ()
+        if isinstance(keys, str):
+            keys = (keys,)
+        normalized = tuple(keys)
+        if any(not key for key in normalized):
+            raise ValueError("qc_obs_feature_keys cannot contain empty keys.")
+        return normalized
+
+    cluster_key = _normalize_optional_key(cluster_key, "cluster_key")
+    embedding_key = _normalize_optional_key(embedding_key, "embedding_key")
+    qc_obs_feature_keys = _normalize_qc_keys(qc_obs_feature_keys)
+
+    has_clusters = cluster_key is not None
+    has_embedding = embedding_key is not None
+    has_qc = len(qc_obs_feature_keys) > 0
+
+    if has_embedding and emb_radius_mode not in {"auto", "manual"}:
         raise ValueError(
             "emb_radius_mode must be either 'auto' or 'manual'; "
             f"got {emb_radius_mode!r}."
@@ -159,7 +179,7 @@ def visium_hd(
         raise ValueError(
             "spot_size_micron must be > 0 so spatial spot radius is valid."
         )
-    if emb_radius_mode == "manual" and emb_radius <= 0:
+    if has_embedding and emb_radius_mode == "manual" and emb_radius <= 0:
         raise ValueError("emb_radius must be > 0 when emb_radius_mode='manual'.")
     if center is not None and len(center) != 2:
         raise ValueError("center must be a tuple of two floats: (x, y).")
@@ -192,56 +212,78 @@ def visium_hd(
     )
 
     # clusters + genes
+    expression_wrapper_kwargs: dict[str, object] = {
+        "adata_path": path_adata,
+        "obs_feature_matrix_path": "X",
+        "obs_spots_path": f"obsm/{spatial_key}",
+        "coordination_values": {
+            "obsType": OBS_TYPE_SPOT,
+            "featureType": FEATURE_TYPE_GENE,
+            "featureValueType": FEATURE_VALUE_TYPE_EXPRESSION,
+        },
+    }
+    if has_clusters:
+        expression_wrapper_kwargs["obs_set_paths"] = [f"obs/{cluster_key}"]
+        expression_wrapper_kwargs["obs_set_names"] = [
+            cluster_key_display_name
+        ]  # display name in UI
+    if has_embedding:
+        expression_wrapper_kwargs["obs_embedding_paths"] = [f"obsm/{embedding_key}"]
+        expression_wrapper_kwargs["obs_embedding_names"] = [embedding_display_name]
+
+    # add the Anndata for the clusters + genes
     dataset.add_object(
         AnnDataWrapper(
-            adata_path=path_adata,
-            obs_feature_matrix_path="X",
-            obs_spots_path=f"obsm/{spatial_key}",
-            obs_set_paths=[f"obs/{cluster_key}"],
-            obs_set_names=[cluster_key_display_name],  # display name in UI
-            obs_embedding_paths=[f"obsm/{embedding_key}"],
-            obs_embedding_names=[embedding_display_name],
-            coordination_values={
-                "obsType": OBS_TYPE_SPOT,
-                "featureType": FEATURE_TYPE_GENE,
-                "featureValueType": FEATURE_VALUE_TYPE_EXPRESSION,
-            },
+            **expression_wrapper_kwargs,
         )
     )
 
     # qc
-    dataset.add_object(
-        AnnDataWrapper(
-            adata_path=path_adata,
-            obs_feature_matrix_path=None,
-            obs_feature_column_paths=[f"obs/{key}" for key in qc_obs_feature_keys],
-            coordination_values={
-                "obsType": OBS_TYPE_SPOT,
-                "featureType": FEATURE_TYPE_QC,
-                "featureValueType": FEATURE_VALUE_TYPE_QC,
-            },
+    if has_qc:
+        dataset.add_object(
+            AnnDataWrapper(
+                adata_path=path_adata,
+                obs_feature_matrix_path=None,
+                obs_feature_column_paths=[f"obs/{key}" for key in qc_obs_feature_keys],
+                coordination_values={
+                    "obsType": OBS_TYPE_SPOT,
+                    "featureType": FEATURE_TYPE_QC,
+                    "featureValueType": FEATURE_VALUE_TYPE_QC,
+                },
+            )
         )
-    )
 
     # 1) create views:
-    # i) clusters + genes
+    # i) gene expression (+ optional clusters / embedding)
     spatial_plot = vc.add_view(SPATIAL_VIEW, dataset=dataset)
-    spatial_plot.set_props(
-        title=f"{cluster_key_display_name} Clusters + Gene Expression"
-    )
+    if has_clusters:
+        spatial_plot.set_props(
+            title=f"{cluster_key_display_name} Clusters + Gene Expression"
+        )
+    else:
+        spatial_plot.set_props(title="Gene Expression")
+
     layer_controller = vc.add_view(LAYER_CONTROLLER_VIEW, dataset=dataset)
     genes = vc.add_view(cm.FEATURE_LIST, dataset=dataset)
-    cell_sets = vc.add_view(cm.OBS_SETS, dataset=dataset)
-    umap = vc.add_view(cm.SCATTERPLOT, dataset=dataset, mapping=embedding_display_name)
+    cell_sets = vc.add_view(cm.OBS_SETS, dataset=dataset) if has_clusters else None
+    umap = (
+        vc.add_view(cm.SCATTERPLOT, dataset=dataset, mapping=embedding_display_name)
+        if has_embedding
+        else None
+    )
     # ii) qc
-    histogram = vc.add_view(cm.FEATURE_VALUE_HISTOGRAM, dataset=dataset)
-    spatial_qc = vc.add_view(SPATIAL_VIEW, dataset=dataset)
-    spatial_qc.set_props(title="QC")
-    qc_list = vc.add_view(cm.FEATURE_LIST, dataset=dataset)
-    qc_list.set_props(title="QC list")
+    histogram = (
+        vc.add_view(cm.FEATURE_VALUE_HISTOGRAM, dataset=dataset) if has_qc else None
+    )
+    spatial_qc = vc.add_view(SPATIAL_VIEW, dataset=dataset) if has_qc else None
+    if spatial_qc is not None:
+        spatial_qc.set_props(title="QC")
+    qc_list = vc.add_view(cm.FEATURE_LIST, dataset=dataset) if has_qc else None
+    if qc_list is not None:
+        qc_list.set_props(title="QC list")
 
     # 2) add coordination (that will then be used on the views)
-    # i) clusters + genes
+    # i) gene expression (+ optional clusters / embedding)
     obs_type, feat_type, feat_val_type, obs_color, feat_sel, obs_set_sel = (
         vc.add_coordination(
             ct.OBS_TYPE,
@@ -257,78 +299,94 @@ def visium_hd(
         FEATURE_TYPE_GENE
     )  # defined in coordination_values when we add addata
     feat_val_type.set_value(FEATURE_VALUE_TYPE_EXPRESSION)
-    # color by clusters (cell sets), not by gene selection
-    obs_color.set_value(OBS_COLOR_CELL_SET_SELECTION)
+    # When clusters are unavailable, default to gene-based coloring.
+    obs_color.set_value(
+        OBS_COLOR_CELL_SET_SELECTION if has_clusters else OBS_COLOR_GENE_SELECTION
+    )
     obs_set_sel.set_value(None)
 
-    emb_radius_mode_coord, emb_radius_coord = vc.add_coordination(
-        ct.EMBEDDING_OBS_RADIUS_MODE,
-        ct.EMBEDDING_OBS_RADIUS,
-    )
-
-    emb_radius_mode_coord.set_value(emb_radius_mode)
-    emb_radius_coord.set_value(emb_radius)
+    emb_radius_mode_coord = None
+    emb_radius_coord = None
+    if has_embedding:
+        emb_radius_mode_coord, emb_radius_coord = vc.add_coordination(
+            ct.EMBEDDING_OBS_RADIUS_MODE,
+            ct.EMBEDDING_OBS_RADIUS,
+        )
+        emb_radius_mode_coord.set_value(emb_radius_mode)
+        emb_radius_coord.set_value(emb_radius)
 
     # ii) qc
-    obs_color_qc, feat_type_qc, feat_val_type_qc, feat_sel_qc, obs_set_sel_qc = (
-        vc.add_coordination(
-            ct.OBS_COLOR_ENCODING,
-            ct.FEATURE_TYPE,
-            ct.FEATURE_VALUE_TYPE,
-            ct.FEATURE_SELECTION,
-            ct.OBS_SET_SELECTION,
+    if has_qc:
+        obs_color_qc, feat_type_qc, feat_val_type_qc, feat_sel_qc, obs_set_sel_qc = (
+            vc.add_coordination(
+                ct.OBS_COLOR_ENCODING,
+                ct.FEATURE_TYPE,
+                ct.FEATURE_VALUE_TYPE,
+                ct.FEATURE_SELECTION,
+                ct.OBS_SET_SELECTION,
+            )
         )
-    )
-    obs_color_qc.set_value(OBS_COLOR_GENE_SELECTION)  # use feature values for QC
-    feat_type_qc.set_value(FEATURE_TYPE_QC)
-    feat_val_type_qc.set_value(FEATURE_VALUE_TYPE_QC)
-    feat_sel_qc.set_value([qc_obs_feature_keys[0]])
-    obs_set_sel_qc.set_value(None)
+        obs_color_qc.set_value(OBS_COLOR_GENE_SELECTION)  # use feature values for QC
+        feat_type_qc.set_value(FEATURE_TYPE_QC)
+        feat_val_type_qc.set_value(FEATURE_VALUE_TYPE_QC)
+        feat_sel_qc.set_value([qc_obs_feature_keys[0]])
+        obs_set_sel_qc.set_value(None)
 
     # 3) use coordination on the views
-    # i) clusters + genes
+    # i) gene expression (+ optional clusters / embedding)
     spatial_plot.use_coordination(
         obs_type, feat_type, feat_val_type, obs_color, feat_sel, obs_set_sel
     )
     spatial_plot.use_coordination(spatial_zoom, spatial_target_x, spatial_target_y)
     genes.use_coordination(obs_type, obs_color, feat_sel, feat_type, feat_val_type)
-    cell_sets.use_coordination(obs_type, obs_set_sel, obs_color)
-    umap.use_coordination(
-        obs_type,
-        feat_type,
-        feat_val_type,
-        obs_color,
-        feat_sel,
-        obs_set_sel,
-        emb_radius_mode_coord,
-        emb_radius_coord,
-    )
+    if cell_sets is not None:
+        cell_sets.use_coordination(obs_type, obs_set_sel, obs_color)
+    if (
+        umap is not None
+        and emb_radius_mode_coord is not None
+        and emb_radius_coord is not None
+    ):
+        umap.use_coordination(
+            obs_type,
+            feat_type,
+            feat_val_type,
+            obs_color,
+            feat_sel,
+            obs_set_sel,
+            emb_radius_mode_coord,
+            emb_radius_coord,
+        )
     # ii) qc
-    spatial_qc.use_coordination(
-        obs_type,
-        obs_color_qc,
-        feat_sel_qc,
-        feat_type_qc,
-        feat_val_type_qc,
-        obs_set_sel_qc,
-    )
-    spatial_qc.use_coordination(spatial_zoom, spatial_target_x, spatial_target_y)
-    qc_list.use_coordination(
-        obs_type, obs_color_qc, feat_sel_qc, feat_type_qc, feat_val_type_qc
-    )
-    histogram.use_coordination(
-        obs_type,
-        feat_type_qc,
-        feat_val_type_qc,
-        feat_sel_qc,
-        # obs_color_qc,
-        # obs_set_sel_qc # this does not work -> lasso on the qc is not passed to qc
-    )
+    if spatial_qc is not None and qc_list is not None and histogram is not None:
+        spatial_qc.use_coordination(
+            obs_type,
+            obs_color_qc,
+            feat_sel_qc,
+            feat_type_qc,
+            feat_val_type_qc,
+            obs_set_sel_qc,
+        )
+        spatial_qc.use_coordination(spatial_zoom, spatial_target_x, spatial_target_y)
+        qc_list.use_coordination(
+            obs_type, obs_color_qc, feat_sel_qc, feat_type_qc, feat_val_type_qc
+        )
+        histogram.use_coordination(
+            obs_type,
+            feat_type_qc,
+            feat_val_type_qc,
+            feat_sel_qc,
+            # obs_color_qc,
+            # obs_set_sel_qc # this does not work -> lasso on the qc is not passed to qc
+        )
 
     # note that it is also possible to create two spotlayers, one for qc, one for clusters+genes
     #  but then we need two layer controllers, which looks weird in the UI
+    linked_views = [spatial_plot, layer_controller]
+    if spatial_qc is not None:
+        linked_views.append(spatial_qc)
+
     vc.link_views_by_dict(
-        [spatial_plot, spatial_qc, layer_controller],
+        linked_views,
         {
             "imageLayer": CL(
                 [
@@ -360,30 +418,50 @@ def visium_hd(
     )
     layer_controller.set_props(disableChannelsIfRgbDetected=True)
 
-    vc.layout(
-        hconcat(
-            # COLUMN 1: spatial_plot, umap
-            vconcat(
-                spatial_plot,
-                umap,
-                split=[8, 4],
-            ),
-            # COLUMN 2: spatial_qc, histogram
-            vconcat(
-                spatial_qc,
-                histogram,
-                split=[8, 4],
-            ),
-            vconcat(
-                layer_controller,
-                genes,  # gene_list
-                qc_list,
-                cell_sets,  # spot_sets
-                split=[3, 4, 3, 2],  # 3 + 4 + 2 + 3 = 12
-            ),
-            # Column widths: left wide, middle wide, right narrow
-            split=[5, 5, 2],
+    main_column = (
+        vconcat(
+            spatial_plot,
+            umap,
+            split=[8, 4],
         )
+        if umap is not None
+        else spatial_plot
     )
+
+    control_views = [layer_controller, genes]
+    if qc_list is not None:
+        control_views.append(qc_list)
+    if cell_sets is not None:
+        control_views.append(cell_sets)
+
+    if has_qc and has_clusters:
+        control_split = [3, 4, 3, 2]
+    elif has_qc and not has_clusters:
+        control_split = [3, 5, 4]
+    elif not has_qc and has_clusters:
+        control_split = [3, 6, 3]
+    else:
+        control_split = [3, 9]
+
+    control_column = vconcat(*control_views, split=control_split)
+
+    if spatial_qc is not None and histogram is not None:
+        qc_column = vconcat(
+            spatial_qc,
+            histogram,
+            split=[8, 4],
+        )
+        layout_split = [5, 5, 2] if umap is not None else [6, 4, 2]
+        layout_view = hconcat(
+            main_column,
+            qc_column,
+            control_column,
+            split=layout_split,
+        )
+    else:
+        layout_split = [9, 3] if umap is not None else [10, 2]
+        layout_view = hconcat(main_column, control_column, split=layout_split)
+
+    vc.layout(layout_view)
 
     return vc
