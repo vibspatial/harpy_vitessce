@@ -12,6 +12,14 @@
 - Landing page and tutorials are available in `docs/`.
 - Main tutorial: `docs/tutorials/visium_hd/visium_hd.ipynb`
 
+### Build Docs Locally
+
+See: [`docs/BUILD_DOCS.md`](docs/BUILD_DOCS.md)
+
+### Publish Docs Publicly (Read the Docs)
+
+See: [`docs/BUILD_DOCS.md`](docs/BUILD_DOCS.md)
+
 ## Disclaimer
 
 This is an independent, third-party integration project and is not affiliated
