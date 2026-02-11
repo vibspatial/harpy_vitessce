@@ -18,13 +18,9 @@ def _smallest_safe_integer_dtype(
     if arr_min >= 0:
         candidates = (
             np.uint8,
-            np.int8,
             np.uint16,
-            np.int16,
             np.uint32,
-            np.int32,
             np.uint64,
-            np.int64,
         )
     else:
         candidates = (np.int8, np.int16, np.int32, np.int64)
@@ -55,11 +51,20 @@ def _can_safely_cast_float64_to_float32(values: np.ndarray) -> bool:
     return np.array_equal(values, cast_values.astype(np.float64))
 
 
-def safe_cast_integer_like_float32(
+def _ensure_csc_if_sparse(arr: np.ndarray | spmatrix) -> np.ndarray | spmatrix:
+    """
+    Convert sparse matrices to CSC format, leave dense arrays unchanged.
+    """
+    if issparse(arr) and getattr(arr, "format", None) != "csc":
+        return arr.tocsc()
+    return arr
+
+
+def normalize_array(
     arr: np.ndarray | spmatrix,
 ) -> np.ndarray | spmatrix:
     """
-    Safely downcast dense or sparse numeric arrays to smaller integer dtypes.
+    Safely downcast numeric dtypes and normalize sparse matrices to CSC format.
 
     Parameters
     ----------
@@ -74,6 +79,7 @@ def safe_cast_integer_like_float32(
         For float inputs, casting only happens when all values are finite and
         integer-like. Additionally, non-integer ``float64`` values are cast to
         ``float32`` when the cast is lossless.
+        Sparse inputs are always returned in CSC format.
         The input is returned unchanged when any of the following applies:
         dtype is unsupported, float values are non-finite, float values are not
         exact integers and cannot be losslessly represented as ``float32``, or
@@ -94,19 +100,19 @@ def safe_cast_integer_like_float32(
         values = arr
 
     if arr.dtype.kind not in {"f", "i", "u"}:
-        return arr
+        return _ensure_csc_if_sparse(arr)
 
     if values.size == 0:
         # Sparse arrays with no stored entries are all implicit zeros.
         if is_sparse:
-            return arr.astype(np.uint8)
-        return arr
+            return _ensure_csc_if_sparse(arr.astype(np.uint8))
+        return _ensure_csc_if_sparse(arr)
 
     if arr.dtype.kind == "f":
         if arr.dtype not in (np.float32, np.float64):
-            return arr
+            return _ensure_csc_if_sparse(arr)
         if not np.isfinite(values).all():
-            return arr
+            return _ensure_csc_if_sparse(arr)
 
         is_integer_like = np.array_equal(values, np.trunc(values))
         if not is_integer_like:
@@ -115,7 +121,7 @@ def safe_cast_integer_like_float32(
                     "Could not cast array to integer dtype safely (non-integer values). "
                     "Casting float64 to float32 instead."
                 )
-                return arr.astype(np.float32)
+                return _ensure_csc_if_sparse(arr.astype(np.float32))
             if arr.dtype == np.float64:
                 logger.warning(
                     "Could not cast array to integer dtype safely (non-integer values), "
@@ -126,7 +132,7 @@ def safe_cast_integer_like_float32(
                     "Could not cast array to integer dtype safely (non-integer values). "
                     "Keeping float32."
                 )
-            return arr
+            return _ensure_csc_if_sparse(arr)
 
         arr_min = float(values.min())
         arr_max = float(values.max())
@@ -142,10 +148,9 @@ def safe_cast_integer_like_float32(
 
     target_dtype = _smallest_safe_integer_dtype(arr_min=arr_min, arr_max=arr_max)
     if target_dtype is None or arr.dtype == target_dtype:
-        return arr
+        return _ensure_csc_if_sparse(arr)
 
-    return arr.astype(target_dtype)
-
+    return _ensure_csc_if_sparse(arr.astype(target_dtype))
 
 def copy_annotations(
     src: ad.AnnData,  # typically the adata containing the preprocessed counts
