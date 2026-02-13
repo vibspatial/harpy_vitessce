@@ -33,6 +33,7 @@ FEATURE_VALUE_TYPE_EXPRESSION = "expression"
 FEATURE_TYPE_QC = "qc"
 FEATURE_VALUE_TYPE_QC = "qc_value"
 
+
 def _is_remote_url(path: str) -> bool:
     parsed = urlparse(path)
     return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
@@ -48,6 +49,131 @@ def _normalize_path_or_url(path: str | Path, name: str) -> tuple[str, bool]:
             f"{name} URL must start with http:// or https:// and include a host."
         )
     return path_str, _is_remote_url(path_str)
+
+
+def single_channel_image(
+    img_source: str | Path,  # local path relative to base_dir or remote URL
+    name: str = "Visium HD Image",
+    description: str = "Visium HD image-only view",
+    schema_version: str = "1.0.18",
+    base_dir: str | Path | None = None,
+    center: tuple[float, float] | None = None,
+    zoom: float | None = -4,
+    photometric_interpretation: Literal[
+        "RGB", "BlackIsZero", "BlackWhite"
+    ] = "BlackIsZero",
+) -> VitessceConfig:
+    """
+    Build a Vitessce configuration that visualizes only the OME-Zarr image.
+
+    Parameters
+    ----------
+    img_source
+        Path/URL to the OME-Zarr image. Local paths are relative to ``base_dir``
+        when provided.
+    name
+        Dataset name shown in Vitessce.
+    description
+        Configuration description.
+    schema_version
+        Vitessce schema version.
+    base_dir
+        Optional base directory for relative local paths in the config.
+        Ignored when ``img_source`` is a remote URL.
+    center
+        Initial spatial target as ``(x, y)`` camera center coordinates.
+        Use ``None`` to keep Vitessce defaults.
+    zoom
+        Initial spatial zoom level. Use ``None`` to keep Vitessce defaults.
+    photometric_interpretation
+        Image photometric interpretation used by the spatial image layer.
+        Use ``"BlackIsZero"`` for single-channel grayscale images and ``"RGB"``
+        for RGB images. ``"BlackWhite"`` is accepted as a backwards-compatible
+        alias for ``"BlackIsZero"``.
+
+    Returns
+    -------
+    VitessceConfig
+        A configured Vitessce configuration object with image-only views.
+
+    Raises
+    ------
+    ValueError
+        If ``center`` is provided but is not a 2-item tuple.
+    """
+    img_source, is_img_remote = _normalize_path_or_url(img_source, "img_source")
+    if photometric_interpretation == "BlackWhite":
+        photometric_interpretation = "BlackIsZero"
+    if photometric_interpretation not in {"RGB", "BlackIsZero"}:
+        raise ValueError(
+            "photometric_interpretation must be one of: "
+            "'RGB', 'BlackIsZero' (or legacy alias 'BlackWhite')."
+        )
+    if center is not None and len(center) != 2:
+        raise ValueError("center must be a tuple of two floats: (x, y).")
+
+    vc = VitessceConfig(
+        schema_version=schema_version,
+        description=description,
+        # base_dir only applies to local *_path entries.
+        base_dir=(
+            None if is_img_remote else (str(base_dir) if base_dir is not None else None)
+        ),
+    )
+
+    spatial_zoom, spatial_target_x, spatial_target_y = vc.add_coordination(
+        ct.SPATIAL_ZOOM,
+        ct.SPATIAL_TARGET_X,
+        ct.SPATIAL_TARGET_Y,
+    )
+
+    if zoom is not None:
+        spatial_zoom.set_value(zoom)
+    if center is not None:
+        spatial_target_x.set_value(center[0])
+        spatial_target_y.set_value(center[1])
+
+    file_uuid = f"img_h&e_{uuid.uuid4()}"  # can be set to any value
+    img_wrapper_kwargs: dict[str, object] = {
+        "coordination_values": {"fileUid": file_uuid},
+    }
+    img_wrapper_kwargs["img_url" if is_img_remote else "img_path"] = img_source
+    dataset = vc.add_dataset(name=name).add_object(
+        ImageOmeZarrWrapper(**img_wrapper_kwargs)
+    )
+
+    spatial_plot = vc.add_view(SPATIAL_VIEW, dataset=dataset)
+    layer_controller = vc.add_view(LAYER_CONTROLLER_VIEW, dataset=dataset)
+
+    spatial_plot.use_coordination(spatial_zoom, spatial_target_x, spatial_target_y)
+    image_layer = {
+        "fileUid": file_uuid,
+        "spatialLayerVisible": True,
+        "spatialLayerOpacity": 1.0,
+        "photometricInterpretation": photometric_interpretation,
+    }
+    if photometric_interpretation != "RGB":
+        image_layer["imageChannel"] = CL(
+            [
+                {
+                    "spatialTargetC": 0,
+                    "spatialChannelColor": [255, 255, 255],
+                    "spatialChannelVisible": True,
+                    "spatialChannelOpacity": 1.0,
+                }
+            ]
+        )
+
+    vc.link_views_by_dict(
+        [spatial_plot, layer_controller],
+        {"imageLayer": CL([image_layer])},
+    )
+    layer_controller.set_props(
+        disableChannelsIfRgbDetected=(photometric_interpretation == "RGB")
+    )
+    vc.layout(hconcat(spatial_plot, layer_controller, split=[10, 2]))
+
+    return vc
 
 
 def visium_hd(
@@ -188,9 +314,7 @@ def visium_hd(
     embedding_key = _normalize_optional_key(embedding_key, "embedding_key")
     qc_obs_feature_keys = _normalize_qc_keys(qc_obs_feature_keys)
     img_source, is_img_remote = _normalize_path_or_url(img_source, "img_source")
-    adata_source, is_adata_remote = _normalize_path_or_url(
-        adata_source, "adata_source"
-    )
+    adata_source, is_adata_remote = _normalize_path_or_url(adata_source, "adata_source")
 
     has_clusters = cluster_key is not None
     has_embedding = embedding_key is not None
