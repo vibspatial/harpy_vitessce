@@ -59,7 +59,7 @@ def visium_hd(
     base_dir: str | Path | None = None,
     center: tuple[float, float] | None = None,
     zoom: float | None = -4,  # e.g. -4
-    spot_size_micron: int = 16,
+    spot_radius_size_micron: int = 8,
     spatial_key: str = "spatial",  # center of the spots. In micron coordinates
     cluster_key: str | None = "leiden",
     cluster_key_display_name: str = "Leiden",
@@ -107,8 +107,8 @@ def visium_hd(
         Use ``None`` to keep Vitessce defaults.
     zoom
         Initial spatial zoom level. Use ``None`` to keep Vitessce defaults.
-    spot_size_micron
-        Spot diameter in microns; rendered radius is ``spot_size_micron // 2``.
+    spot_radius_size_micron
+        Spot radius in microns used by the spatial spot layer.
     spatial_key
         Key under ``obsm`` used for spot coordinates, e.g. ``"spatial"`` -> ``"obsm/spatial"``.
     cluster_key
@@ -143,7 +143,7 @@ def visium_hd(
         If ``spatial_key`` is empty, a provided ``cluster_key``/``embedding_key`` is
         empty, ``qc_obs_feature_keys`` contains empty keys, or
         ``emb_radius_mode`` is not ``"auto"``/``"manual"``, or ``center`` is not a
-        2-item tuple, or ``spot_size_micron <= 0``, or ``emb_radius <= 0`` when
+        2-item tuple, or ``spot_radius_size_micron <= 0``, or ``emb_radius <= 0`` when
         ``emb_radius_mode="manual"``.
 
     Examples
@@ -201,9 +201,9 @@ def visium_hd(
             "emb_radius_mode must be either 'auto' or 'manual'; "
             f"got {emb_radius_mode!r}."
         )
-    if spot_size_micron <= 0:
+    if spot_radius_size_micron <= 0:
         raise ValueError(
-            "spot_size_micron must be > 0 so spatial spot radius is valid."
+            "spot_radius_size_micron must be > 0 so spatial spot radius is valid."
         )
     if has_embedding and emb_radius_mode == "manual" and emb_radius <= 0:
         raise ValueError("emb_radius must be > 0 when emb_radius_mode='manual'.")
@@ -445,7 +445,7 @@ def visium_hd(
                         "obsType": obs_type,
                         "spatialLayerVisible": True,
                         "spatialLayerOpacity": 1.0,
-                        "spatialSpotRadius": spot_size_micron // 2,
+                        "spatialSpotRadius": spot_radius_size_micron,
                         "spatialSpotFilled": True,
                         "spatialSpotStrokeWidth": 1.0,
                         "spatialLayerColor": [255, 255, 255],
