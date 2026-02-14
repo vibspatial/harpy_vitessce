@@ -1,7 +1,6 @@
 import uuid
 from pathlib import Path
 from typing import Literal, Sequence
-from urllib.parse import urlparse
 
 from loguru import logger
 from vitessce import (
@@ -22,6 +21,7 @@ from vitessce import (
 )
 
 from harpy_vitessce.vitessce_config._image import _ImageLayerConfigBuilder
+from harpy_vitessce.vitessce_config._utils import _normalize_path_or_url
 
 # Vitessce component identifiers used by this config.
 SPATIAL_VIEW = "spatialBeta"
@@ -35,23 +35,6 @@ FEATURE_TYPE_GENE = "gene"
 FEATURE_VALUE_TYPE_EXPRESSION = "expression"
 FEATURE_TYPE_QC = "qc"
 FEATURE_VALUE_TYPE_QC = "qc_value"
-
-
-def _is_remote_url(path: str) -> bool:
-    parsed = urlparse(path)
-    return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
-
-
-def _normalize_path_or_url(path: str | Path, name: str) -> tuple[str, bool]:
-    path_str = str(path)
-    if not path_str:
-        raise ValueError(f"{name} must be a non-empty path or URL.")
-    parsed = urlparse(path_str)
-    if parsed.scheme and not _is_remote_url(path_str):
-        raise ValueError(
-            f"{name} URL must start with http:// or https:// and include a host."
-        )
-    return path_str, _is_remote_url(path_str)
 
 
 def single_channel_image(
