@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Literal, Sequence
 from urllib.parse import urlparse
 
+from loguru import logger
 from vitessce import (
     AnnDataWrapper,
     ImageOmeZarrWrapper,
@@ -105,6 +106,10 @@ def single_channel_image(
     """
     img_source, is_img_remote = _normalize_path_or_url(img_source, "img_source")
     if photometric_interpretation == "BlackWhite":
+        logger.warning(
+            "photometric_interpretation='BlackWhite' is deprecated; "
+            "normalizing to 'BlackIsZero'."
+        )
         photometric_interpretation = "BlackIsZero"
     if photometric_interpretation not in {"RGB", "BlackIsZero"}:
         raise ValueError(
@@ -239,7 +244,8 @@ def visium_hd(
     visualize_as_rgb
         If ``True``, render as RGB when exactly 3 channels are detected.
         Otherwise, fall back to an RGB-like channel view using the first three
-        channels (when available). If ``False``, render channels individually.
+        channels (when available). If ``False``, or if less than 3 channels are available,
+        render channels individually.
     spot_radius_size_micron
         Spot radius in microns used by the spatial spot layer.
     spatial_key
@@ -552,12 +558,12 @@ def visium_hd(
         )
 
     # note that it is also possible to create two spotlayers, one for qc, one for clusters+genes
-    #  but then we need two layer controllers, which looks weird in the UI
+    #  but then we need two layer controllers, which looks kinda weird in the UI
     linked_views = [spatial_plot, layer_controller]
     if spatial_qc is not None:
         linked_views.append(spatial_qc)
 
-    image_layer, disable_channels_if_rgb_detected = _ImageLayerConfigBuilder(
+    image_layer, can_render_as_rgb = _ImageLayerConfigBuilder(
         img_source=img_source,
         is_img_remote=is_img_remote,
         base_dir=base_dir,
@@ -586,9 +592,7 @@ def visium_hd(
             ),
         },
     )
-    layer_controller.set_props(
-        disableChannelsIfRgbDetected=disable_channels_if_rgb_detected
-    )
+    layer_controller.set_props(disableChannelsIfRgbDetected=can_render_as_rgb)
 
     main_column = (
         vconcat(

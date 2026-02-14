@@ -145,8 +145,8 @@ class _ImageLayerConfigBuilder:
         tuple[dict[str, object], bool]
             A pair of `(image_layer, can_render_as_rgb)` where:
             - `image_layer` is the layer config for Vitessce `imageLayer`.
-            - `can_render_as_rgb` is `True` only when the
-              chosen rendering mode is RGB, and there are at least 3 channels
+            - `can_render_as_rgb` is `True` only when RGB rendering is selected
+              and at least 3 channels are detected in the OME-Zarr.
         """
         n_channels = self._infer_channel_count()
         image_layer: dict[str, object] = {
@@ -164,7 +164,9 @@ class _ImageLayerConfigBuilder:
                         "first three channels (0, 1, 2) as RGB.",
                         n_channels,
                     )
-                    # TODO: check if this branch works if more than 3 channels
+                    # if channels > 3, we need a way to tell vitessce to only render the
+                    # first three images, therefore we need to add "imageChannel" key in this case.
+                    # layer we then set disableChannelsIfRgbDetected to True
                     image_layer["imageChannel"] = self._image_channels_coordination(
                         n_channels=n_channels,
                         visible_channels={0, 1, 2},
