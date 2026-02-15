@@ -211,6 +211,7 @@ class _MacsimaImageLayerConfigBuilder:
                     {
                         "spatialTargetC": i,
                         "spatialChannelColor": self._channel_color(i),
+                        # TODO: probably not override colors, or let users specify them
                         "spatialChannelVisible": True,
                         "spatialChannelOpacity": self.channel_opacity,
                         "spatialChannelWindow": None,

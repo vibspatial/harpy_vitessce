@@ -104,6 +104,7 @@ class _ImageLayerConfigBuilder:
     def _infer_channel_windows(
         self, n_channels: int
     ) -> list[list[float] | None] | None:
+        # TODO: probably remove this block
         """
         Infer per-channel intensity windows for initial rendering.
 
@@ -327,7 +328,9 @@ class _ImageLayerConfigBuilder:
             [
                 {
                     "spatialTargetC": i,
-                    "spatialChannelColor": self._channel_color(i, n_channels),
+                    "spatialChannelColor": self._channel_color(
+                        i, n_channels
+                    ),  # TODO: probably not override colors, or let users specify them
                     "spatialChannelVisible": i in visible_channels,
                     "spatialChannelOpacity": self.channel_opacity,
                     # Keep window scoped per channel so sliders are decoupled.
