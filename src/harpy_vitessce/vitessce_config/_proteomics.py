@@ -109,14 +109,14 @@ class _MacsimaImageLayerConfigBuilder:
     @staticmethod
     def _channel_color(index: int) -> list[int]:
         palette = [
-            [255, 0, 0],
-            [0, 255, 0],
-            [0, 0, 255],
-            [255, 255, 0],
-            [255, 0, 255],
-            [0, 255, 255],
-            [255, 165, 0],
-            [165, 255, 0],
+            [255, 0, 0],  # "#FF0000"  Red
+            [0, 255, 0],  # "#00FF00"  Green
+            [0, 0, 255],  # "#0000FF"  Blue
+            [255, 255, 0],  # "#FFFF00"  Yellow
+            [128, 0, 128],  # "#800080"  Purple
+            [255, 165, 0],  # "#FFA500"  Orange
+            [255, 192, 203],  # "#FFC0CB"  Pink
+            [139, 69, 19],  # "#8B4513"  Brown
         ]
         return palette[index % len(palette)]
 
@@ -200,7 +200,13 @@ class _MacsimaImageLayerConfigBuilder:
         file_uid: str,
         channels: Sequence[int | str] | None,
     ) -> tuple[dict[str, object], bool]:
-        selected_channels = self._resolve_requested_channels(channels)
+        # selected_channels = self._resolve_requested_channels(channels) # do not resolve, fetch it on the go; maybe let user specify how much, else default to 1?
+        # maybe add an assert
+        # allow user to pass a palette.
+        if channels is None:
+            selected_channels = [0]  # only render the first.
+        else:
+            selected_channels = channels
         image_layer: dict[str, object] = {
             "fileUid": file_uid,
             "spatialLayerVisible": True,
@@ -211,7 +217,7 @@ class _MacsimaImageLayerConfigBuilder:
                     {
                         "spatialTargetC": i,
                         "spatialChannelColor": self._channel_color(i),
-                        # TODO: probably not override colors, or let users specify them
+                        # TODO: yes -> override colors.
                         "spatialChannelVisible": True,
                         "spatialChannelOpacity": self.channel_opacity,
                         "spatialChannelWindow": None,
