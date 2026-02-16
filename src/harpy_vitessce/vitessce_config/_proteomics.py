@@ -18,13 +18,13 @@ from harpy_vitessce.vitessce_config._constants import (
 )
 from harpy_vitessce.vitessce_config._image import (
     _resolve_image_coordinate_transformations,
+    _spatialdata_transformation_to_ngff,
     build_image_layer_config,
 )
 from harpy_vitessce.vitessce_config._utils import _normalize_path_or_url
 
 
 def macsima(
-    *,
     sdata: SpatialData | None = None,
     img_layer: str | None = None,
     img_source: str
@@ -41,6 +41,7 @@ def macsima(
     layer_opacity: float = 1.0,
     microns_per_pixel: float | tuple[float, float] | None = None,
     coordinate_transformations: Sequence[Mapping[str, object]] | None = None,
+    to_coordinate_system: str = "global",
 ) -> VitessceConfig:
     """
     Build a Vitessce configuration for MACSima image-only visualization.
@@ -95,6 +96,14 @@ def macsima(
         Raw file-level OME-NGFF coordinate transformations passed to
         ``ImageOmeZarrWrapper``.
         Mutually exclusive with ``microns_per_pixel``.
+    to_coordinate_system
+        Coordinate-system key used only when ``sdata`` is provided and both
+        ``microns_per_pixel`` and ``coordinate_transformations`` are ``None``.
+        In that case, the transform is read from ``sdata.images[img_layer]``,
+        converted to an affine matrix on ``("c", "y", "x")``, and then mapped
+        to OME-NGFF ``coordinateTransformations``.
+        Typically this is the micron coordinate system.
+        Ignored otherwise.
 
     Returns
     -------
@@ -132,8 +141,21 @@ def macsima(
     elif img_source is None:
         raise ValueError("Either img_source or sdata must be provided.")
 
-    assert img_source is not None  # narrowed by checks above
     img_source, is_img_remote = _normalize_path_or_url(img_source, "img_source")
+
+    # resolve the transformation:
+    if sdata is not None:
+        if coordinate_transformations is None and microns_per_pixel is None:
+            logger.info(
+                "Both coordinate_transformations and microns_per_pixel is None."
+                "Fetching coordinate transformation from the SpatialData object."
+            )
+            coordinate_transformations = _spatialdata_transformation_to_ngff(
+                sdata,
+                layer=img_layer,
+                to_coordinate_system=to_coordinate_system,
+            )
+
     image_coordinate_transformations = _resolve_image_coordinate_transformations(
         coordinate_transformations=coordinate_transformations,
         microns_per_pixel=microns_per_pixel,

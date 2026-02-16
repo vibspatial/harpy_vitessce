@@ -4,7 +4,6 @@ from typing import Literal, Mapping, Sequence
 
 from loguru import logger
 from spatialdata import SpatialData
-from spatialdata.transformations import get_transformation
 from vitessce import (
     AnnDataWrapper,
     ImageOmeZarrWrapper,
@@ -35,6 +34,7 @@ from harpy_vitessce.vitessce_config._constants import (
 )
 from harpy_vitessce.vitessce_config._image import (
     _resolve_image_coordinate_transformations,
+    _spatialdata_transformation_to_ngff,
     build_image_layer_config,
 )
 from harpy_vitessce.vitessce_config._utils import _normalize_path_or_url
@@ -423,6 +423,7 @@ def visium_hd(
     assert img_source is not None
     assert adata_source is not None
     img_source, is_img_remote = _normalize_path_or_url(img_source, "img_source")
+    adata_source, is_adata_remote = _normalize_path_or_url(adata_source, "adata_source")
 
     # resolve the transformation:
     if sdata is not None:
@@ -431,31 +432,16 @@ def visium_hd(
                 "Both coordinate_transformations and microns_per_pixel is None."
                 "Fetching coordinate transformation from the SpatialData object."
             )
-            transformations = get_transformation(sdata.images[img_layer], get_all=True)
-            if to_coordinate_system not in transformations.keys():
-                raise ValueError(
-                    f"coordinate system {to_coordinate_system} is not a coordinate system of {img_layer}."
-                )
-            transformation = transformations[to_coordinate_system]
-            transformation = transformation.to_affine_matrix(
-                input_axes=["c", "y", "x"], output_axes=["c", "y", "x"]
-            )
-            from harpy_vitessce.vitessce_config._image import (
-                affine_matrix_to_ngff_coordinate_transformations,
-            )
-
-            # convert to ngff coordinate transformation
-            coordinate_transformations = (
-                affine_matrix_to_ngff_coordinate_transformations(
-                    affine=transformation, enforce_c_identity=True
-                )
+            coordinate_transformations = _spatialdata_transformation_to_ngff(
+                sdata,
+                layer=img_layer,
+                to_coordinate_system=to_coordinate_system,
             )
 
     image_coordinate_transformations = _resolve_image_coordinate_transformations(
         coordinate_transformations=coordinate_transformations,
         microns_per_pixel=microns_per_pixel,
     )
-    adata_source, is_adata_remote = _normalize_path_or_url(adata_source, "adata_source")
 
     has_clusters = cluster_key is not None
     has_embedding = embedding_key is not None

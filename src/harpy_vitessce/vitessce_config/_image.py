@@ -4,6 +4,8 @@ from typing import Any
 
 import numpy as np
 from loguru import logger
+from spatialdata import SpatialData
+from spatialdata.transformations import get_transformation
 from vitessce import (
     CoordinationLevel as CL,
 )
@@ -207,7 +209,7 @@ def _resolve_image_coordinate_transformations(
     return [{"type": "scale", "scale": [1.0, mpp_y, mpp_x]}]
 
 
-def affine_matrix_to_ngff_coordinate_transformations(
+def _affine_matrix_to_ngff_coordinate_transformations(
     affine: Sequence[Sequence[float]] | np.ndarray,
     *,
     atol: float = 1e-8,
@@ -267,7 +269,7 @@ def affine_matrix_to_ngff_coordinate_transformations(
             )
         sc, tc = 1.0, 0.0
 
-    # OME-NGFF v0.4 order: scale first, optional translation second.
+    # OME-NGFF v0.4: scale and optional translation.
     coordinate_transformations: list[dict[str, Any]] = [
         {"type": "scale", "scale": [float(sc), float(sy), float(sx)]}
     ]
@@ -277,4 +279,26 @@ def affine_matrix_to_ngff_coordinate_transformations(
             {"type": "translation", "translation": [float(tc), float(ty), float(tx)]}
         )
 
+    return coordinate_transformations
+
+
+def _spatialdata_transformation_to_ngff(
+    sdata: SpatialData,
+    layer: str,
+    to_coordinate_system: str = "global",
+) -> list[dict[str, Any]]:
+
+    transformations = get_transformation(sdata[layer], get_all=True)
+    if to_coordinate_system not in transformations.keys():
+        raise ValueError(
+            f"coordinate system {to_coordinate_system} not found for element {layer}.."
+        )
+    transformation = transformations[to_coordinate_system]
+    transformation = transformation.to_affine_matrix(
+        input_axes=["c", "y", "x"], output_axes=["c", "y", "x"]
+    )
+    # convert to ngff coordinate transformation
+    coordinate_transformations = _affine_matrix_to_ngff_coordinate_transformations(
+        affine=transformation, enforce_c_identity=True
+    )
     return coordinate_transformations

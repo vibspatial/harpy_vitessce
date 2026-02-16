@@ -30,7 +30,7 @@ uv add "harpy-vitessce[vitessce] @ git+https://github.com/vibspatial/harpy_vites
 
 # Documentation
 
-Visium HD [example](./docs/tutorials/visium_hd/visium_hd.ipynb).
+Visium HD: [example](./docs/tutorials/visium_hd/visium_hd.ipynb) and a minimal version [here](./docs/tutorials/visium_hd/visium_hd_spatialdata.ipynb)
 MACSima [usage](./docs/tutorials/macsima.md).
 
 # Example:
