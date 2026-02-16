@@ -20,7 +20,7 @@ from vitessce import (
     CoordinationType as ct,
 )
 
-from harpy_vitessce.vitessce_config._image import _ImageLayerConfigBuilder
+from harpy_vitessce.vitessce_config._image import build_image_layer_config
 from harpy_vitessce.vitessce_config._utils import _normalize_path_or_url
 
 # Vitessce component identifiers used by this config.
@@ -176,6 +176,7 @@ def visium_hd(
     center: tuple[float, float] | None = None,
     zoom: float | None = -4,  # e.g. -4
     visualize_as_rgb: bool = True,
+    channels: Sequence[int | str] | None = None,
     spot_radius_size_micron: int = 8,
     spatial_key: str = "spatial",  # center of the spots. In micron coordinates
     cluster_key: str | None = "leiden",
@@ -225,10 +226,13 @@ def visium_hd(
     zoom
         Initial spatial zoom level. Use ``None`` to keep Vitessce defaults.
     visualize_as_rgb
-        If ``True``, render as RGB when exactly 3 channels are detected.
-        Otherwise, fall back to an RGB-like channel view using the first three
-        channels (when available). If ``False``, or if less than 3 channels are available,
-        render channels individually.
+        If ``True``, render the image layer with ``photometricInterpretation="RGB"``.
+        If ``False``, render with ``photometricInterpretation="BlackIsZero"``.
+    channels
+        Initial channels rendered in the image layer.
+        Entries can be integer channel indices or channel names.
+        If ``None``, defaults to ``[0, 1, 2]`` when ``visualize_as_rgb=True``,
+        otherwise ``[0]``.
     spot_radius_size_micron
         Spot radius in microns used by the spatial spot layer.
     spatial_key
@@ -546,10 +550,11 @@ def visium_hd(
     if spatial_qc is not None:
         linked_views.append(spatial_qc)
 
-    image_layer, can_render_as_rgb = _ImageLayerConfigBuilder(
-        img_source=img_source,
+    image_layer, can_render_as_rgb = build_image_layer_config(
+        file_uid=_file_uuid,
+        channels=channels,
         visualize_as_rgb=visualize_as_rgb,
-    ).build(file_uid=_file_uuid, channels=None)
+    )
 
     vc.link_views_by_dict(
         linked_views,
