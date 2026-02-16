@@ -26,8 +26,8 @@ def macsima(
     base_dir: str | Path | None = None,
     center: tuple[float, float] | None = None,
     zoom: float | None = -4,
-    layer_opacity: float = 1.0,
     channels: Sequence[int | str] | None = None,
+    layer_opacity: float = 1.0,
 ) -> VitessceConfig:
     """
     Build a Vitessce configuration for MACSima image-only visualization.
@@ -51,8 +51,6 @@ def macsima(
         Use ``None`` to keep Vitessce defaults.
     zoom
         Initial spatial zoom level. Use ``None`` to keep Vitessce defaults.
-    layer_opacity
-        Opacity of the image layer in ``[0, 1]``.
     channels
         Initial channels rendered by spatialBeta.
         Entries can be integer channel indices or channel names.
@@ -60,6 +58,8 @@ def macsima(
         If ``None``, only channel at index 0 is shown.
         Channel colors are assigned from an internal palette in the order
         of this list (position-based, not value-based).
+    layer_opacity
+        Opacity of the image layer in ``[0, 1]``.
 
     Returns
     -------
