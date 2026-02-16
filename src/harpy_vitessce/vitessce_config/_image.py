@@ -31,7 +31,7 @@ def build_image_layer_config(
     channels: Sequence[int | str] | None,
     visualize_as_rgb: bool = True,
     layer_opacity: float = 1.0,
-) -> tuple[dict[str, object], bool]:
+) -> dict[str, object]:
     """
     Build the Vitessce `imageLayer` coordination entry for the image.
 
@@ -48,10 +48,8 @@ def build_image_layer_config(
 
     Returns
     -------
-    tuple[dict[str, object], bool]
-        A pair of `(image_layer, can_render_as_rgb)` where:
-        - `image_layer` is the layer config for Vitessce `imageLayer`.
-        - `render_as_rgb` is `True` when RGB rendering is selected.
+    dict[str, object]
+        Layer config for Vitessce `imageLayer`.
     """
     image_layer: dict[str, object] = {
         "fileUid": file_uid,
@@ -80,7 +78,7 @@ def build_image_layer_config(
 
     if visualize_as_rgb:
         image_layer["photometricInterpretation"] = "RGB"
-        return image_layer, True
+        return image_layer
 
     if len(selected_channels) > MAX_INITIAL_CHANNELS:
         logger.warning(
@@ -107,4 +105,4 @@ def build_image_layer_config(
         ]
     )
     image_layer["photometricInterpretation"] = "BlackIsZero"
-    return image_layer, False
+    return image_layer

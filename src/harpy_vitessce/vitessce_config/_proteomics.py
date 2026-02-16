@@ -114,7 +114,7 @@ def macsima(
     if spatial_coordination_scopes:
         spatial_plot.use_coordination(*spatial_coordination_scopes)
 
-    image_layer, can_render_as_rgb = build_image_layer_config(
+    image_layer = build_image_layer_config(
         file_uid=file_uuid,
         channels=channels,
         visualize_as_rgb=False,
@@ -125,7 +125,7 @@ def macsima(
         [spatial_plot, layer_controller],
         {"imageLayer": CL([image_layer])},
     )
-    layer_controller.set_props(disableChannelsIfRgbDetected=can_render_as_rgb)
+    layer_controller.set_props(disableChannelsIfRgbDetected=False)
     vc.layout(hconcat(spatial_plot, layer_controller, split=[8, 4]))
 
     return vc

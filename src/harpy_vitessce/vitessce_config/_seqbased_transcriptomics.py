@@ -547,7 +547,7 @@ def visium_hd(
     if spatial_qc is not None:
         linked_views.append(spatial_qc)
 
-    image_layer, can_render_as_rgb = build_image_layer_config(
+    image_layer = build_image_layer_config(
         file_uid=_file_uuid,
         channels=channels,
         visualize_as_rgb=visualize_as_rgb,
@@ -575,7 +575,7 @@ def visium_hd(
             ),
         },
     )
-    layer_controller.set_props(disableChannelsIfRgbDetected=can_render_as_rgb)
+    layer_controller.set_props(disableChannelsIfRgbDetected=visualize_as_rgb)
 
     main_column = (
         vconcat(
