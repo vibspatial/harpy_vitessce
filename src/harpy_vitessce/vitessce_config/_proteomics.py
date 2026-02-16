@@ -19,75 +19,67 @@ LAYER_CONTROLLER_VIEW = "layerControllerBeta"
 MAX_INITIAL_CHANNELS = 6  # Viv only supports 6 simultanously.
 
 
-class _MacsimaImageLayerConfigBuilder:
-    def __init__(
-        self,
-        layer_opacity: float,
-        channel_opacity: float,
-    ):
-        self.layer_opacity = layer_opacity
-        self.channel_opacity = channel_opacity
+def _channel_color(index: int) -> list[int]:
+    palette = [
+        [255, 0, 0],  # "#FF0000"  Red
+        [0, 255, 0],  # "#00FF00"  Green
+        [0, 0, 255],  # "#0000FF"  Blue
+        [255, 255, 0],  # "#FFFF00"  Yellow
+        [128, 0, 128],  # "#800080"  Purple
+        [255, 165, 0],  # "#FFA500"  Orange
+        [255, 192, 203],  # "#FFC0CB"  Pink
+        [139, 69, 19],  # "#8B4513"  Brown
+    ]
+    return palette[index % len(palette)]
 
-    @staticmethod
-    def _channel_color(index: int) -> list[int]:
-        palette = [
-            [255, 0, 0],  # "#FF0000"  Red
-            [0, 255, 0],  # "#00FF00"  Green
-            [0, 0, 255],  # "#0000FF"  Blue
-            [255, 255, 0],  # "#FFFF00"  Yellow
-            [128, 0, 128],  # "#800080"  Purple
-            [255, 165, 0],  # "#FFA500"  Orange
-            [255, 192, 203],  # "#FFC0CB"  Pink
-            [139, 69, 19],  # "#8B4513"  Brown
-        ]
-        return palette[index % len(palette)]
 
-    def build(
-        self,
-        file_uid: str,
-        channels: Sequence[int | str] | None,
-    ) -> tuple[dict[str, object], bool]:
-        # maybe let user specify how much, else default to 1?
-        # maybe add an assert
-        # allow user to pass a palette.
-        if channels is None:
-            selected_channels = [0]  # only render the first if none specified
-            logger.info(
-                "No channels were provided; rendering only channel at index 0. "
-                "Additional channels can be enabled in the Vitessce UI."
-            )
-        else:
-            selected_channels = channels
-        if len(selected_channels) > MAX_INITIAL_CHANNELS:
-            logger.warning(
-                "Vitessce {} supports at most {} simultaneously visible channels; "
-                "got {}. Will only render the first {} channels.",
-                SPATIAL_VIEW,
-                MAX_INITIAL_CHANNELS,
-                len(selected_channels),
-                MAX_INITIAL_CHANNELS,
-            )
-            selected_channels = selected_channels[:MAX_INITIAL_CHANNELS]
-        image_layer: dict[str, object] = {
-            "fileUid": file_uid,
-            "spatialLayerVisible": True,
-            "spatialLayerOpacity": self.layer_opacity,
-            "photometricInterpretation": "BlackIsZero",
-            "imageChannel": CL(
-                [
-                    {
-                        "spatialTargetC": channel,
-                        "spatialChannelColor": self._channel_color(pos),
-                        # TODO: yes -> override colors?
-                        "spatialChannelVisible": True,
-                        "spatialChannelOpacity": self.channel_opacity,  # TODO: this seems to be ignored.
-                        "spatialChannelWindow": None,
-                    }
-                    for pos, channel in enumerate(selected_channels)
-                ]
-            ),
-        }
-        return image_layer, False
+def _build_macsima_image_layer(
+    file_uid: str,
+    channels: Sequence[int | str] | None,
+    layer_opacity: float,
+    channel_opacity: float,
+) -> tuple[dict[str, object], bool]:
+    # maybe let user specify how much, else default to 1?
+    # maybe add an assert
+    # allow user to pass a palette.
+    if channels is None:
+        selected_channels = [0]  # only render the first if none specified
+        logger.info(
+            "No channels were provided; rendering only channel at index 0. "
+            "Additional channels can be enabled in the Vitessce UI."
+        )
+    else:
+        selected_channels = channels
+    if len(selected_channels) > MAX_INITIAL_CHANNELS:
+        logger.warning(
+            "Vitessce {} supports at most {} simultaneously visible channels; "
+            "got {}. Will only render the first {} channels.",
+            SPATIAL_VIEW,
+            MAX_INITIAL_CHANNELS,
+            len(selected_channels),
+            MAX_INITIAL_CHANNELS,
+        )
+        selected_channels = selected_channels[:MAX_INITIAL_CHANNELS]
+    image_layer: dict[str, object] = {
+        "fileUid": file_uid,
+        "spatialLayerVisible": True,
+        "spatialLayerOpacity": layer_opacity,
+        "photometricInterpretation": "BlackIsZero",
+        "imageChannel": CL(
+            [
+                {
+                    "spatialTargetC": channel,
+                    "spatialChannelColor": _channel_color(pos),
+                    # TODO: yes -> override colors?
+                    "spatialChannelVisible": True,
+                    "spatialChannelOpacity": channel_opacity,  # TODO: this seems to be ignored.
+                    "spatialChannelWindow": None,
+                }
+                for pos, channel in enumerate(selected_channels)
+            ]
+        ),
+    }
+    return image_layer, False
 
 
 def macsima(
@@ -191,10 +183,12 @@ def macsima(
     if spatial_coordination_scopes:
         spatial_plot.use_coordination(*spatial_coordination_scopes)
 
-    image_layer, can_render_as_rgb = _MacsimaImageLayerConfigBuilder(
+    image_layer, can_render_as_rgb = _build_macsima_image_layer(
+        file_uid=file_uuid,
+        channels=channels,
         layer_opacity=layer_opacity,
         channel_opacity=channel_opacity,  # TODO this seems to be ignored.
-    ).build(file_uid=file_uuid, channels=channels)
+    )
 
     vc.link_views_by_dict(
         [spatial_plot, layer_controller],
