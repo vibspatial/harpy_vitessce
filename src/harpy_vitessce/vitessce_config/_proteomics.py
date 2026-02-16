@@ -1,5 +1,5 @@
 import uuid
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 from loguru import logger
@@ -16,7 +16,10 @@ from harpy_vitessce.vitessce_config._constants import (
     LAYER_CONTROLLER_VIEW,
     SPATIAL_VIEW,
 )
-from harpy_vitessce.vitessce_config._image import build_image_layer_config
+from harpy_vitessce.vitessce_config._image import (
+    _resolve_image_coordinate_transformations,
+    build_image_layer_config,
+)
 from harpy_vitessce.vitessce_config._utils import _normalize_path_or_url
 
 
@@ -36,6 +39,8 @@ def macsima(
     channels: Sequence[int | str] | None = None,
     palette: Sequence[str] | None = None,
     layer_opacity: float = 1.0,
+    microns_per_pixel: float | tuple[float, float] | None = None,
+    coordinate_transformations: Sequence[Mapping[str, object]] | None = None,
 ) -> VitessceConfig:
     """
     Build a Vitessce configuration for MACSima image-only visualization.
@@ -80,6 +85,16 @@ def macsima(
         by position for selected channels.
     layer_opacity
         Opacity of the image layer in ``[0, 1]``.
+    microns_per_pixel
+        Convenience option to add a file-level scale transform on ``(y, x)``.
+        A scalar applies isotropically.
+        Values are multiplicative scale factors (for absolute override, use
+        ``desired_pixel_size / source_pixel_size``).
+        This transform is composed *after* OME-NGFF metadata transforms.
+    coordinate_transformations
+        Raw file-level OME-NGFF coordinate transformations passed to
+        ``ImageOmeZarrWrapper``.
+        Mutually exclusive with ``microns_per_pixel``.
 
     Returns
     -------
@@ -119,6 +134,10 @@ def macsima(
 
     assert img_source is not None  # narrowed by checks above
     img_source, is_img_remote = _normalize_path_or_url(img_source, "img_source")
+    image_coordinate_transformations = _resolve_image_coordinate_transformations(
+        coordinate_transformations=coordinate_transformations,
+        microns_per_pixel=microns_per_pixel,
+    )
     if center is not None and len(center) != 2:
         raise ValueError("center must be a tuple of two floats: (x, y).")
     if not 0.0 <= layer_opacity <= 1.0:
@@ -150,6 +169,10 @@ def macsima(
     img_wrapper_kwargs: dict[str, object] = {
         "coordination_values": {"fileUid": file_uuid},
     }
+    if image_coordinate_transformations is not None:
+        img_wrapper_kwargs["coordinate_transformations"] = (
+            image_coordinate_transformations
+        )
     img_wrapper_kwargs["img_url" if is_img_remote else "img_path"] = img_source
     dataset = vc.add_dataset(name=name).add_object(
         ImageOmeZarrWrapper(**img_wrapper_kwargs)

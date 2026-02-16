@@ -1,5 +1,8 @@
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
+from numbers import Real
+from typing import Any
 
+import numpy as np
 from loguru import logger
 from vitessce import (
     CoordinationLevel as CL,
@@ -156,3 +159,122 @@ def build_image_layer_config(
     )
     image_layer["photometricInterpretation"] = "BlackIsZero"
     return image_layer
+
+
+def _resolve_image_coordinate_transformations(
+    *,
+    coordinate_transformations: Sequence[Mapping[str, object]] | None,
+    microns_per_pixel: float | tuple[float, float] | None,
+) -> list[dict[str, object]] | None:
+    """
+    Resolve optional file-level OME-NGFF coordinate transformations.
+
+    Notes
+    -----
+    Vitessce applies file-level ``coordinateTransformations`` *after* the
+    OME-NGFF metadata transforms from the Zarr store.
+    """
+    if coordinate_transformations is not None and microns_per_pixel is not None:
+        raise ValueError(
+            "Provide either coordinate_transformations or microns_per_pixel, not both."
+        )
+
+    if coordinate_transformations is not None:
+        return [dict(transform) for transform in coordinate_transformations]
+
+    if microns_per_pixel is None:
+        return None
+
+    if isinstance(microns_per_pixel, Real):
+        mpp_y = float(microns_per_pixel)
+        mpp_x = float(microns_per_pixel)
+    else:
+        if len(microns_per_pixel) != 2:
+            raise ValueError(
+                "microns_per_pixel must be a positive float or a (y, x) tuple."
+            )
+        mpp_y = float(microns_per_pixel[0])
+        mpp_x = float(microns_per_pixel[1])
+
+    if mpp_y <= 0 or mpp_x <= 0:
+        raise ValueError("microns_per_pixel values must be > 0.")
+
+    logger.warning(
+        "Applying microns_per_pixel={} as additional file-level scale multiplier. "
+        "This is composed after OME-NGFF metadata transforms.",
+        (mpp_y, mpp_x),
+    )
+    return [{"type": "scale", "scale": [1.0, mpp_y, mpp_x]}]
+
+
+def affine_matrix_to_ngff_coordinate_transformations(
+    affine: Sequence[Sequence[float]] | np.ndarray,
+    *,
+    atol: float = 1e-8,
+    enforce_c_identity: bool = True,
+) -> list[dict[str, Any]]:
+    """
+    Convert an affine transform (c,y,x) to OME-NGFF coordinateTransformations.
+
+    Accepted shapes:
+    - (4, 4): homogeneous matrix for (c, y, x, 1)
+    - (3, 4): [linear | translation]
+    - (3, 3): linear only (translation assumed zero)
+
+    Assumes column-vector convention: x' = A x + t.
+    For 4x4, translation is expected in the last column.
+    """
+    A = np.asarray(affine, dtype=float)
+
+    if A.shape == (4, 4):
+        if not np.allclose(A[3], [0.0, 0.0, 0.0, 1.0], atol=atol):
+            raise ValueError("For 4x4 input, last row must be [0, 0, 0, 1].")
+        linear = A[:3, :3]
+        translation = A[:3, 3]
+    elif A.shape == (3, 4):
+        linear = A[:, :3]
+        translation = A[:, 3]
+    elif A.shape == (3, 3):
+        linear = A
+        translation = np.zeros(3, dtype=float)
+    else:
+        raise ValueError("Affine must have shape (4,4), (3,4), or (3,3).")
+
+    if not np.all(np.isfinite(linear)) or not np.all(np.isfinite(translation)):
+        raise ValueError("Affine contains non-finite values.")
+
+    # NGFF-compatible here means: scale (+ optional translation), no rotation/shear.
+    diag_only = np.diag(np.diag(linear))
+    if not np.allclose(linear, diag_only, atol=atol):
+        raise ValueError(
+            "Not NGFF scale/translation-only: off-diagonal terms found (rotation/shear)."
+        )
+
+    sc, sy, sx = np.diag(linear).astype(float)
+    tc, ty, tx = translation.astype(float)
+
+    if (
+        np.isclose(sc, 0.0, atol=atol)
+        or np.isclose(sy, 0.0, atol=atol)
+        or np.isclose(sx, 0.0, atol=atol)
+    ):
+        raise ValueError("Scale contains zero, which is invalid.")
+
+    if enforce_c_identity:
+        if not np.isclose(sc, 1.0, atol=atol) or not np.isclose(tc, 0.0, atol=atol):
+            raise ValueError(
+                "Expected channel axis unchanged: c-scale=1 and c-translation=0."
+            )
+        sc, tc = 1.0, 0.0
+
+    # OME-NGFF v0.4 order: scale first, optional translation second.
+    coordinate_transformations: list[dict[str, Any]] = [
+        {"type": "scale", "scale": [float(sc), float(sy), float(sx)]}
+    ]
+
+    if not np.allclose([tc, ty, tx], [0.0, 0.0, 0.0], atol=atol):
+        coordinate_transformations.append(
+            {"type": "translation", "translation": [float(tc), float(ty), float(tx)]}
+        )
+
+    return coordinate_transformations
