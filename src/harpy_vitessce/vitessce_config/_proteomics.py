@@ -2,6 +2,8 @@ import uuid
 from collections.abc import Sequence
 from pathlib import Path
 
+from loguru import logger
+from spatialdata import SpatialData
 from vitessce import (
     CoordinationLevel as CL,
 )
@@ -19,11 +21,16 @@ from harpy_vitessce.vitessce_config._utils import _normalize_path_or_url
 
 
 def macsima(
-    img_source: str | Path,  # local path relative to base_dir or remote URL
+    *,
+    sdata: SpatialData | None = None,
+    img_layer: str | None = None,
+    img_source: str
+    | Path
+    | None = None,  # local path relative to base_dir or remote URL
+    base_dir: str | Path | None = None,
     name: str = "MACSima",
     description: str = "MACSima image-only view",
     schema_version: str = "1.0.18",
-    base_dir: str | Path | None = None,
     center: tuple[float, float] | None = None,
     zoom: float | None = -4,
     channels: Sequence[int | str] | None = None,
@@ -35,18 +42,27 @@ def macsima(
 
     Parameters
     ----------
+    sdata
+        Optional ``SpatialData`` object. When provided, image source is resolved
+        as ``sdata.path / "images" / img_layer``.
+    img_layer
+        Image layer name under ``images`` in ``sdata``. Required when ``sdata``
+        is provided.
+        Ignored when ``sdata`` is not provided.
     img_source
-        Path/URL to the OME-Zarr image. Local paths are relative to ``base_dir``
+        Path/URL to an OME-Zarr image. Local paths are relative to ``base_dir``
         when provided.
+        Ignored when ``sdata`` is provided.
+    base_dir
+        Optional base directory for relative local paths in the config.
+        Ignored when ``img_source`` is a remote URL.
+        Ignored when ``sdata`` is provided.
     name
         Dataset name shown in Vitessce.
     description
         Configuration description.
     schema_version
         Vitessce schema version.
-    base_dir
-        Optional base directory for relative local paths in the config.
-        Ignored when ``img_source`` is a remote URL.
     center
         Initial spatial target as ``(x, y)`` camera center coordinates.
         Use ``None`` to keep Vitessce defaults.
@@ -74,7 +90,34 @@ def macsima(
     ------
     ValueError
         If ``center`` is provided but is not a 2-item tuple.
+        If ``sdata`` is provided but ``img_layer`` is missing.
+        If neither ``img_source`` nor ``sdata`` is provided.
+        If ``sdata.path`` is ``None``.
     """
+    if sdata is not None:
+        if img_layer is None:
+            raise ValueError("img_layer is required when sdata is provided.")
+        if img_source is not None:
+            logger.warning(
+                "Both sdata and img_source were provided; img_source is ignored and "
+                "image source is resolved from sdata.path/images/{}.",
+                img_layer,
+            )
+        if base_dir is not None:
+            logger.warning(
+                "Both sdata and base_dir were provided; base_dir is ignored because "
+                "image source is resolved from sdata.path."
+            )
+        if sdata.path is None:
+            raise ValueError(
+                "sdata.path is None. Provide a backed SpatialData object or pass img_source directly."
+            )
+        img_source = Path(sdata.path) / "images" / img_layer
+        base_dir = None
+    elif img_source is None:
+        raise ValueError("Either img_source or sdata must be provided.")
+
+    assert img_source is not None  # narrowed by checks above
     img_source, is_img_remote = _normalize_path_or_url(img_source, "img_source")
     if center is not None and len(center) != 2:
         raise ValueError("center must be a tuple of two floats: (x, y).")

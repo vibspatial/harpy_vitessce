@@ -32,6 +32,12 @@ Example visualization for Visium HD can be found
 
     End-to-end notebook for Visium HD.
 
+.. card:: MACSima Usage
+    :link: tutorials/macsima
+    :link-type: doc
+
+    Image-only configuration with SpatialData or direct image source.
+
 .. card:: Source Repository
     :link: https://github.com/vibspatial/harpy_vitessce
     :link-type: url
