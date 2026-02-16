@@ -230,7 +230,7 @@ def visium_hd(
     Parameters
     ----------
     sdata
-        Optional ``SpatialData`` object. When provided, image source is resolved
+        ``SpatialData`` object. When provided, image source is resolved
         as ``sdata.path / "images" / img_layer`` and table source as
         ``sdata.path / "tables" / table_layer``.
     img_layer

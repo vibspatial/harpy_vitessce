@@ -49,7 +49,7 @@ def macsima(
     Parameters
     ----------
     sdata
-        Optional ``SpatialData`` object. When provided, image source is resolved
+        ``SpatialData`` object. When provided, image source is resolved
         as ``sdata.path / "images" / img_layer``.
     img_layer
         Image layer name under ``images`` in ``sdata``. Required when ``sdata``
