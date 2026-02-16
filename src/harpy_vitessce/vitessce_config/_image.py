@@ -5,10 +5,10 @@ from vitessce import (
     CoordinationLevel as CL,
 )
 
-LAYER_CONTROLLER_VIEW = "layerControllerBeta"
-SPATIAL_VIEW = "spatialBeta"
-
-MAX_INITIAL_CHANNELS = 6  # Viv only supports 6 simultanously.
+from harpy_vitessce.vitessce_config._constants import (
+    MAX_INITIAL_CHANNELS,
+    SPATIAL_VIEW,
+)
 
 
 def _channel_color(index: int) -> list[int]:
@@ -86,7 +86,7 @@ def build_image_layer_config(
         logger.warning(
             "Vitessce {} supports at most {} simultaneously visible channels; "
             "got {}. Will only render the first {} channels.",
-            LAYER_CONTROLLER_VIEW,
+            SPATIAL_VIEW,
             MAX_INITIAL_CHANNELS,
             len(selected_channels),
             MAX_INITIAL_CHANNELS,

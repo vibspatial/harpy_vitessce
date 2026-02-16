@@ -10,13 +10,12 @@ from vitessce import (
 )
 from vitessce import ImageOmeZarrWrapper, VitessceConfig, hconcat
 
+from harpy_vitessce.vitessce_config._constants import (
+    LAYER_CONTROLLER_VIEW,
+    SPATIAL_VIEW,
+)
 from harpy_vitessce.vitessce_config._image import build_image_layer_config
 from harpy_vitessce.vitessce_config._utils import _normalize_path_or_url
-
-# Vitessce component identifiers used by this config.
-SPATIAL_VIEW = "spatialBeta"
-LAYER_CONTROLLER_VIEW = "layerControllerBeta"
-MAX_INITIAL_CHANNELS = 6  # Viv only supports 6 simultanously.
 
 
 def macsima(

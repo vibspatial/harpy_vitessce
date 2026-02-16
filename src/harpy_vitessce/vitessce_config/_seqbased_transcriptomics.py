@@ -20,22 +20,19 @@ from vitessce import (
     CoordinationType as ct,
 )
 
+from harpy_vitessce.vitessce_config._constants import (
+    FEATURE_TYPE_GENE,
+    FEATURE_TYPE_QC,
+    FEATURE_VALUE_TYPE_EXPRESSION,
+    FEATURE_VALUE_TYPE_QC,
+    LAYER_CONTROLLER_VIEW,
+    OBS_COLOR_CELL_SET_SELECTION,
+    OBS_COLOR_GENE_SELECTION,
+    OBS_TYPE_SPOT,
+    SPATIAL_VIEW,
+)
 from harpy_vitessce.vitessce_config._image import build_image_layer_config
 from harpy_vitessce.vitessce_config._utils import _normalize_path_or_url
-
-# Vitessce component identifiers used by this config.
-SPATIAL_VIEW = "spatialBeta"
-LAYER_CONTROLLER_VIEW = "layerControllerBeta"
-OBS_TYPE_SPOT = "spot"
-OBS_COLOR_CELL_SET_SELECTION = "cellSetSelection"
-OBS_COLOR_GENE_SELECTION = "geneSelection"
-
-# Vitessce coordination defaults used by this config (i.e. can be changed).
-FEATURE_TYPE_GENE = "gene"
-FEATURE_VALUE_TYPE_EXPRESSION = "expression"
-FEATURE_TYPE_QC = "qc"
-FEATURE_VALUE_TYPE_QC = "qc_value"
-
 
 def single_channel_image(
     img_source: str | Path,  # local path relative to base_dir or remote URL
