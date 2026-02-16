@@ -13,7 +13,7 @@ from ome_zarr.writer import write_image, write_multiscale
 def xarray_to_ome_zarr(
     tree_or_da: xr.DataArray | xr.DataTree,
     output_path: str | Path,
-    channel_names: Sequence[str],
+    channel_names: Sequence[str] | str,
     channel_colors: Mapping[str, str] | None = None,
     chunks: tuple[int, int, int] = (1, 256, 256),
     coords_in_microns: bool = False,
@@ -39,8 +39,9 @@ def xarray_to_ome_zarr(
         `image` DataArray, or a single DataArray with dims (c, y, x).
     output_path : str
         Output path to the OME-Zarr store.
-    channel_names : list[str]
-        Channel labels to store in the OMERO metadata.
+    channel_names : Sequence[str] | str
+        Channel labels to store in the OMERO metadata. A single string is
+        treated as one channel name.
     channel_colors : dict[str, str] | None
         Mapping channel name -> hex color string. If None, defaults to white.
     chunks : tuple[int, int, int]
@@ -56,6 +57,8 @@ def xarray_to_ome_zarr(
     zarr_format
         Zarr format to write. Ignored if zarr.__version__ < 3.
     """
+
+    channel_names = _normalize_channel_names(channel_names)
 
     def _spacing_from_coords(da):
         dy = (
@@ -173,7 +176,7 @@ def xarray_to_ome_zarr(
     z_root.attrs["omero"] = {
         "name": "Image",
         "version": "0.3",
-        "rdefs": {"model": "color"},
+        "rdefs": _default_omero_rdefs_model(len(channel_names)),
         "channels": [
             {
                 "label": ch,
@@ -188,7 +191,7 @@ def xarray_to_ome_zarr(
 def array_to_ome_zarr(
     img_arr: np.ndarray | da.Array,
     output_path: str | Path,
-    channel_names: Sequence[str],
+    channel_names: Sequence[str] | str,
     channel_colors: Mapping[str, str] | None = None,
     chunks: tuple[int, int, int] = (1, 256, 256),
     microns_per_pixel: float = 1.0,
@@ -205,8 +208,9 @@ def array_to_ome_zarr(
         Image array matching the provided axes.
     output_path : str | Path
         Output path to the OME-Zarr store.
-    channel_names : list[str]
-        Channel labels to store in the OMERO metadata.
+    channel_names : Sequence[str] | str
+        Channel labels to store in the OMERO metadata. A single string is
+        treated as one channel name.
     channel_colors : dict[str, str] | None
         Mapping channel name -> hex color string. If None, defaults to white.
     chunks : tuple[int, int, int]
@@ -222,6 +226,8 @@ def array_to_ome_zarr(
         Axis order as a sequence (e.g., ["c", "y", "x"]) or a string
         (e.g., "cyx" or "czyx").
     """
+    channel_names = _normalize_channel_names(channel_names)
+
     if microns_per_z is None:
         microns_per_z = microns_per_pixel
 
@@ -317,7 +323,7 @@ def array_to_ome_zarr(
     z_root.attrs["omero"] = {
         "name": "Image",
         "version": "0.3",
-        "rdefs": {"model": "color"},
+        "rdefs": _default_omero_rdefs_model(len(channel_names)),
         "channels": [
             {
                 "label": ch,
@@ -336,3 +342,17 @@ def _cum_factors(scale_factors: Sequence[int]) -> list[float]:
         c *= f
         out.append(c)
     return out
+
+
+def _normalize_channel_names(channel_names: Sequence[str] | str) -> list[str]:
+    if isinstance(channel_names, str):
+        return [channel_names]
+    return list(channel_names)
+
+
+def _default_omero_rdefs_model(n_channels: int) -> dict[str, str]:
+    # Vitessce treats model='color' as RGB; for non-RGB channel counts we
+    # keep an empty rdefs mapping so data is handled as multiplex/grayscale.
+    if n_channels in {3, 4}:
+        return {"model": "color"}
+    return {}
