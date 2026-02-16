@@ -37,7 +37,6 @@ def _build_macsima_image_layer(
     file_uid: str,
     channels: Sequence[int | str] | None,
     layer_opacity: float,
-    channel_opacity: float,
 ) -> tuple[dict[str, object], bool]:
     # maybe let user specify how much, else default to 1?
     # maybe add an assert
@@ -72,7 +71,6 @@ def _build_macsima_image_layer(
                     "spatialChannelColor": _channel_color(pos),
                     # TODO: yes -> override colors?
                     "spatialChannelVisible": True,
-                    "spatialChannelOpacity": channel_opacity,  # TODO: this seems to be ignored.
                     "spatialChannelWindow": None,
                 }
                 for pos, channel in enumerate(selected_channels)
@@ -91,7 +89,6 @@ def macsima(
     center: tuple[float, float] | None = None,
     zoom: float | None = -4,
     layer_opacity: float = 1.0,
-    channel_opacity: float = 1.0,  # channel opacity seems to be ignored.
     channels: Sequence[int | str] | None = None,
 ) -> VitessceConfig:
     """
@@ -118,8 +115,6 @@ def macsima(
         Initial spatial zoom level. Use ``None`` to keep Vitessce defaults.
     layer_opacity
         Opacity of the image layer in ``[0, 1]``.
-    channel_opacity
-        Default opacity applied to each image channel in ``[0, 1]``.
     channels
         Initial channels rendered by spatialBeta.
         Entries can be integer channel indices or channel names.
@@ -143,8 +138,6 @@ def macsima(
         raise ValueError("center must be a tuple of two floats: (x, y).")
     if not 0.0 <= layer_opacity <= 1.0:
         raise ValueError("layer_opacity must be between 0.0 and 1.0.")
-    if not 0.0 <= channel_opacity <= 1.0:
-        raise ValueError("channel_opacity must be between 0.0 and 1.0.")
 
     vc = VitessceConfig(
         schema_version=schema_version,
@@ -187,7 +180,6 @@ def macsima(
         file_uid=file_uuid,
         channels=channels,
         layer_opacity=layer_opacity,
-        channel_opacity=channel_opacity,  # TODO this seems to be ignored.
     )
 
     vc.link_views_by_dict(
