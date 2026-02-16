@@ -27,6 +27,7 @@ def macsima(
     center: tuple[float, float] | None = None,
     zoom: float | None = -4,
     channels: Sequence[int | str] | None = None,
+    palette: Sequence[str] | None = None,
     layer_opacity: float = 1.0,
 ) -> VitessceConfig:
     """
@@ -58,6 +59,9 @@ def macsima(
         If ``None``, only channel at index 0 is shown.
         Channel colors are assigned from an internal palette in the order
         of this list (position-based, not value-based).
+    palette
+        Optional list of channel colors in hex format (``"#RRGGBB"``) used
+        by position for selected channels.
     layer_opacity
         Opacity of the image layer in ``[0, 1]``.
 
@@ -117,6 +121,7 @@ def macsima(
     image_layer = build_image_layer_config(
         file_uid=file_uuid,
         channels=channels,
+        palette=palette,
         visualize_as_rgb=False,
         layer_opacity=layer_opacity,
     )

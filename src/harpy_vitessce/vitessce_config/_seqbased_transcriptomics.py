@@ -174,6 +174,7 @@ def visium_hd(
     zoom: float | None = -4,  # e.g. -4
     visualize_as_rgb: bool = True,
     channels: Sequence[int | str] | None = None,
+    palette: Sequence[str] | None = None,
     spot_radius_size_micron: int = 8,
     spatial_key: str = "spatial",  # center of the spots. In micron coordinates
     cluster_key: str | None = "leiden",
@@ -230,6 +231,9 @@ def visium_hd(
         Entries can be integer channel indices or channel names.
         If ``None``, defaults to ``[0, 1, 2]`` when ``visualize_as_rgb=True``,
         otherwise ``[0]``.
+    palette
+        Optional list of channel colors in hex format (``"#RRGGBB"``) used
+        by position for selected channels in non-RGB mode.
     spot_radius_size_micron
         Spot radius in microns used by the spatial spot layer.
     spatial_key
@@ -550,6 +554,7 @@ def visium_hd(
     image_layer = build_image_layer_config(
         file_uid=_file_uuid,
         channels=channels,
+        palette=palette,
         visualize_as_rgb=visualize_as_rgb,
     )
 
