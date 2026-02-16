@@ -17,6 +17,7 @@ def _channel_color(index: int) -> list[int]:
         [255, 192, 203],  # "#FFC0CB"  Pink
         [139, 69, 19],  # "#8B4513"  Brown
     ]
+    # if only one channel, we should fall back to grey.
     return palette[index % len(palette)]
 
 
@@ -49,7 +50,8 @@ def build_image_layer_config(
     # if channels is None -> if visualize_as_rgb -> try rendering as rgb
     if channels is None:
         if visualize_as_rgb:
-            selected_channels = [0, 1, 2]
+            # channels ignored in rgb mode.
+            selected_channels = None
         else:
             logger.info(
                 "No channels were provided, and visualize as rgb set to False; rendering only channel at index 0. "
@@ -57,8 +59,19 @@ def build_image_layer_config(
             )
             selected_channels = [0]
     else:
+        if visualize_as_rgb:
+            logger.warning(
+                "Received {} channel selection(s), but visualize_as_rgb=True; "
+                "the `channels` parameter is ignored in RGB mode.",
+                len(channels),
+            )
         selected_channels = channels
 
+    if visualize_as_rgb:
+        image_layer["photometricInterpretation"] = "RGB"
+        return image_layer, True
+
+    # this part ignored if photmetricInterpretation is "rgb", so we returned early
     image_layer["imageChannel"] = CL(
         [
             {
@@ -71,9 +84,5 @@ def build_image_layer_config(
             for pos, channel in enumerate(selected_channels)
         ]
     )
-
-    if visualize_as_rgb:
-        image_layer["photometricInterpretation"] = "RGB"
-        return image_layer, True
     image_layer["photometricInterpretation"] = "BlackIsZero"
     return image_layer, False
