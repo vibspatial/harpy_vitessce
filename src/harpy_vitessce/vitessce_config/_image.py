@@ -5,6 +5,11 @@ from vitessce import (
     CoordinationLevel as CL,
 )
 
+LAYER_CONTROLLER_VIEW = "layerControllerBeta"
+SPATIAL_VIEW = "spatialBeta"
+
+MAX_INITIAL_CHANNELS = 6  # Viv only supports 6 simultanously.
+
 
 def _channel_color(index: int) -> list[int]:
     palette = [
@@ -34,6 +39,12 @@ def build_image_layer_config(
     ----------
     file_uid
         File identifier used to link this layer to the image file.
+    channels
+        Initial channels rendered in the image layer.
+    visualize_as_rgb
+        If ``True``, configure image rendering as RGB and ignore ``channels``.
+    layer_opacity
+        Opacity of the image layer in ``[0, 1]``.
 
     Returns
     -------
@@ -71,7 +82,18 @@ def build_image_layer_config(
         image_layer["photometricInterpretation"] = "RGB"
         return image_layer, True
 
-    # this part ignored if photmetricInterpretation is "rgb", so we returned early
+    if len(selected_channels) > MAX_INITIAL_CHANNELS:
+        logger.warning(
+            "Vitessce {} supports at most {} simultaneously visible channels; "
+            "got {}. Will only render the first {} channels.",
+            LAYER_CONTROLLER_VIEW,
+            MAX_INITIAL_CHANNELS,
+            len(selected_channels),
+            MAX_INITIAL_CHANNELS,
+        )
+        selected_channels = selected_channels[:MAX_INITIAL_CHANNELS]
+
+    # ignored when photometricInterpretation is RGB (handled by early return).
     image_layer["imageChannel"] = CL(
         [
             {
