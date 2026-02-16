@@ -1,7 +1,9 @@
 import uuid
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 
+from loguru import logger
+from spatialdata import SpatialData
 from vitessce import (
     CoordinationLevel as CL,
 )
@@ -14,39 +16,59 @@ from harpy_vitessce.vitessce_config._constants import (
     LAYER_CONTROLLER_VIEW,
     SPATIAL_VIEW,
 )
-from harpy_vitessce.vitessce_config._image import build_image_layer_config
+from harpy_vitessce.vitessce_config._image import (
+    _resolve_image_coordinate_transformations,
+    _spatialdata_transformation_to_ngff,
+    build_image_layer_config,
+)
 from harpy_vitessce.vitessce_config._utils import _normalize_path_or_url
 
 
 def macsima(
-    img_source: str | Path,  # local path relative to base_dir or remote URL
-    name: str = "MACSima",
-    description: str = "MACSima image-only view",
-    schema_version: str = "1.0.18",
+    sdata: SpatialData | None = None,
+    img_layer: str | None = None,
+    img_source: str
+    | Path
+    | None = None,  # local path relative to base_dir or remote URL
     base_dir: str | Path | None = None,
+    name: str = "MACSima",
+    description: str = "MACSima",
+    schema_version: str = "1.0.18",
     center: tuple[float, float] | None = None,
     zoom: float | None = -4,
     channels: Sequence[int | str] | None = None,
     palette: Sequence[str] | None = None,
     layer_opacity: float = 1.0,
+    microns_per_pixel: float | tuple[float, float] | None = None,
+    coordinate_transformations: Sequence[Mapping[str, object]] | None = None,
+    to_coordinate_system: str = "global",
 ) -> VitessceConfig:
     """
     Build a Vitessce configuration for MACSima image-only visualization.
 
     Parameters
     ----------
+    sdata
+        ``SpatialData`` object. When provided, image source is resolved
+        as ``sdata.path / "images" / img_layer``.
+    img_layer
+        Image layer name under ``images`` in ``sdata``. Required when ``sdata``
+        is provided.
+        Ignored when ``sdata`` is not provided.
     img_source
-        Path/URL to the OME-Zarr image. Local paths are relative to ``base_dir``
+        Path/URL to an OME-Zarr image. Local paths are relative to ``base_dir``
         when provided.
+        Ignored when ``sdata`` is provided.
+    base_dir
+        Optional base directory for relative local paths in the config.
+        Ignored when ``img_source`` is a remote URL.
+        Ignored when ``sdata`` is provided.
     name
         Dataset name shown in Vitessce.
     description
         Configuration description.
     schema_version
         Vitessce schema version.
-    base_dir
-        Optional base directory for relative local paths in the config.
-        Ignored when ``img_source`` is a remote URL.
     center
         Initial spatial target as ``(x, y)`` camera center coordinates.
         Use ``None`` to keep Vitessce defaults.
@@ -64,6 +86,24 @@ def macsima(
         by position for selected channels.
     layer_opacity
         Opacity of the image layer in ``[0, 1]``.
+    microns_per_pixel
+        Convenience option to add a file-level scale transform on ``(y, x)``.
+        A scalar applies isotropically.
+        Values are multiplicative scale factors (for absolute override, use
+        ``desired_pixel_size / source_pixel_size``).
+        This transform is composed *after* OME-NGFF metadata transforms.
+    coordinate_transformations
+        Raw file-level OME-NGFF coordinate transformations passed to
+        ``ImageOmeZarrWrapper``.
+        Mutually exclusive with ``microns_per_pixel``.
+    to_coordinate_system
+        Coordinate-system key used only when ``sdata`` is provided and both
+        ``microns_per_pixel`` and ``coordinate_transformations`` are ``None``.
+        In that case, the transform is read from ``sdata.images[img_layer]``,
+        converted to an affine matrix on ``("c", "y", "x")``, and then mapped
+        to OME-NGFF ``coordinateTransformations``.
+        Typically this is the micron coordinate system.
+        Ignored otherwise.
 
     Returns
     -------
@@ -74,8 +114,52 @@ def macsima(
     ------
     ValueError
         If ``center`` is provided but is not a 2-item tuple.
+        If ``sdata`` is provided but ``img_layer`` is missing.
+        If neither ``img_source`` nor ``sdata`` is provided.
+        If ``sdata.path`` is ``None``.
     """
+    if sdata is not None:
+        if img_layer is None:
+            raise ValueError("img_layer is required when sdata is provided.")
+        if img_source is not None:
+            logger.warning(
+                "Both sdata and img_source were provided; img_source is ignored and "
+                "image source is resolved from sdata.path/images/{}.",
+                img_layer,
+            )
+        if base_dir is not None:
+            logger.warning(
+                "Both sdata and base_dir were provided; base_dir is ignored because "
+                "image source is resolved from sdata.path."
+            )
+        if sdata.path is None:
+            raise ValueError(
+                "sdata.path is None. Provide a backed SpatialData object or pass img_source directly."
+            )
+        img_source = Path(sdata.path) / "images" / img_layer
+        base_dir = None
+    elif img_source is None:
+        raise ValueError("Either img_source or sdata must be provided.")
+
     img_source, is_img_remote = _normalize_path_or_url(img_source, "img_source")
+
+    # resolve the transformation:
+    if sdata is not None:
+        if coordinate_transformations is None and microns_per_pixel is None:
+            logger.info(
+                "Both coordinate_transformations and microns_per_pixel is None. "
+                "Fetching coordinate transformation from the SpatialData object."
+            )
+            coordinate_transformations = _spatialdata_transformation_to_ngff(
+                sdata,
+                layer=img_layer,
+                to_coordinate_system=to_coordinate_system,
+            )
+
+    image_coordinate_transformations = _resolve_image_coordinate_transformations(
+        coordinate_transformations=coordinate_transformations,
+        microns_per_pixel=microns_per_pixel,
+    )
     if center is not None and len(center) != 2:
         raise ValueError("center must be a tuple of two floats: (x, y).")
     if not 0.0 <= layer_opacity <= 1.0:
@@ -107,6 +191,10 @@ def macsima(
     img_wrapper_kwargs: dict[str, object] = {
         "coordination_values": {"fileUid": file_uuid},
     }
+    if image_coordinate_transformations is not None:
+        img_wrapper_kwargs["coordinate_transformations"] = (
+            image_coordinate_transformations
+        )
     img_wrapper_kwargs["img_url" if is_img_remote else "img_path"] = img_source
     dataset = vc.add_dataset(name=name).add_object(
         ImageOmeZarrWrapper(**img_wrapper_kwargs)

@@ -1,8 +1,9 @@
 import uuid
 from pathlib import Path
-from typing import Literal, Sequence
+from typing import Literal, Mapping, Sequence
 
 from loguru import logger
+from spatialdata import SpatialData
 from vitessce import (
     AnnDataWrapper,
     ImageOmeZarrWrapper,
@@ -31,8 +32,13 @@ from harpy_vitessce.vitessce_config._constants import (
     OBS_TYPE_SPOT,
     SPATIAL_VIEW,
 )
-from harpy_vitessce.vitessce_config._image import build_image_layer_config
+from harpy_vitessce.vitessce_config._image import (
+    _resolve_image_coordinate_transformations,
+    _spatialdata_transformation_to_ngff,
+    build_image_layer_config,
+)
 from harpy_vitessce.vitessce_config._utils import _normalize_path_or_url
+
 
 def single_channel_image(
     img_source: str | Path,  # local path relative to base_dir or remote URL
@@ -45,6 +51,8 @@ def single_channel_image(
     photometric_interpretation: Literal[
         "RGB", "BlackIsZero", "BlackWhite"
     ] = "BlackIsZero",
+    microns_per_pixel: float | tuple[float, float] | None = None,
+    coordinate_transformations: Sequence[Mapping[str, object]] | None = None,
 ) -> VitessceConfig:
     """
     Build a Vitessce configuration that visualizes only the OME-Zarr image.
@@ -73,6 +81,16 @@ def single_channel_image(
         Use ``"BlackIsZero"`` for single-channel grayscale images and ``"RGB"``
         for RGB images. ``"BlackWhite"`` is accepted as a backwards-compatible
         alias for ``"BlackIsZero"``.
+    microns_per_pixel
+        Convenience option to add a file-level scale transform on ``(y, x)``.
+        A scalar applies isotropically.
+        Values are multiplicative scale factors (for absolute override, use
+        ``desired_pixel_size / source_pixel_size``).
+        This transform is composed *after* OME-NGFF metadata transforms.
+    coordinate_transformations
+        Raw file-level OME-NGFF coordinate transformations passed to
+        ``ImageOmeZarrWrapper``.
+        Mutually exclusive with ``microns_per_pixel``.
 
     Returns
     -------
@@ -85,6 +103,10 @@ def single_channel_image(
         If ``center`` is provided but is not a 2-item tuple.
     """
     img_source, is_img_remote = _normalize_path_or_url(img_source, "img_source")
+    image_coordinate_transformations = _resolve_image_coordinate_transformations(
+        coordinate_transformations=coordinate_transformations,
+        microns_per_pixel=microns_per_pixel,
+    )
     if photometric_interpretation == "BlackWhite":
         logger.warning(
             "photometric_interpretation='BlackWhite' is deprecated; "
@@ -124,6 +146,10 @@ def single_channel_image(
     img_wrapper_kwargs: dict[str, object] = {
         "coordination_values": {"fileUid": file_uuid},
     }
+    if image_coordinate_transformations is not None:
+        img_wrapper_kwargs["coordinate_transformations"] = (
+            image_coordinate_transformations
+        )
     img_wrapper_kwargs["img_url" if is_img_remote else "img_path"] = img_source
     dataset = vc.add_dataset(name=name).add_object(
         ImageOmeZarrWrapper(**img_wrapper_kwargs)
@@ -164,8 +190,15 @@ def single_channel_image(
 
 
 def visium_hd(
-    img_source: str | Path,  # local path relative to base_dir or remote URL
-    adata_source: str | Path,  # local path relative to base_dir or remote URL
+    sdata: SpatialData | None = None,
+    img_layer: str | None = None,
+    table_layer: str | None = None,
+    img_source: str
+    | Path
+    | None = None,  # local path relative to base_dir or remote URL
+    adata_source: str
+    | Path
+    | None = None,  # local path relative to base_dir or remote URL
     name: str = "Visium HD",
     description: str = "Visium HD",
     schema_version: str = "1.0.18",
@@ -175,6 +208,9 @@ def visium_hd(
     visualize_as_rgb: bool = True,
     channels: Sequence[int | str] | None = None,
     palette: Sequence[str] | None = None,
+    microns_per_pixel: float | tuple[float, float] | None = None,
+    coordinate_transformations: Sequence[Mapping[str, object]] | None = None,
+    to_coordinate_system: str = "global",
     spot_radius_size_micron: int = 8,
     spatial_key: str = "spatial",  # center of the spots. In micron coordinates
     cluster_key: str | None = "leiden",
@@ -193,12 +229,28 @@ def visium_hd(
 
     Parameters
     ----------
+    sdata
+        ``SpatialData`` object. When provided, image source is resolved
+        as ``sdata.path / "images" / img_layer`` and table source as
+        ``sdata.path / "tables" / table_layer``.
+    img_layer
+        Image layer name under ``images`` in ``sdata``. Required when ``sdata``
+        is provided.
+    table_layer
+        Table layer name under ``tables`` in ``sdata``. Required when ``sdata``
+        is provided.
+        Required field is ``obsm/{spatial_key}``.
+        Optional fields are ``obs/{cluster_key}``, ``obsm/{embedding_key}``,
+        and ``obs/{key}`` for each entry in ``qc_obs_feature_keys``.
+        When optional keys are provided, missing fields will still cause Vitessce
+        data loading/view rendering failures for the corresponding component.
     img_source
         Path/URL to the OME-Zarr image. Local paths are relative to ``base_dir``
         when provided.
         You can generate this image with
         :func:`harpy_vitessce.data_utils.xarray_to_ome_zarr` or
         :func:`harpy_vitessce.data_utils.array_to_ome_zarr`.
+        Ignored when ``sdata`` is provided.
     adata_source
         Path/URL to the AnnData ``.zarr``/``.h5ad`` source. Local paths are
         relative to ``base_dir`` when provided.
@@ -207,6 +259,7 @@ def visium_hd(
         and ``obs/{key}`` for each entry in ``qc_obs_feature_keys``.
         When optional keys are provided, missing fields will still cause Vitessce
         data loading/view rendering failures for the corresponding component.
+        Ignored when ``sdata`` is provided.
     name
         Dataset name shown in Vitessce.
     description
@@ -218,6 +271,7 @@ def visium_hd(
         Remote URLs are used as-is. When both ``img_source`` and ``adata_source``
         are remote URLs, ``base_dir`` is ignored and set to ``None`` in the
         generated Vitessce config.
+        Also ignored when ``sdata`` is provided.
     center
         Initial spatial target as ``(x, y)`` camera center coordinates.
         Use ``None`` to keep Vitessce defaults.
@@ -234,10 +288,28 @@ def visium_hd(
     palette
         Optional list of channel colors in hex format (``"#RRGGBB"``) used
         by position for selected channels in non-RGB mode.
+    microns_per_pixel
+        Convenience option to add a file-level scale transform on ``(y, x)``.
+        A scalar applies isotropically.
+        Values are multiplicative scale factors.
+        This transform is composed *after* OME-NGFF metadata transforms.
+    coordinate_transformations
+        Raw file-level OME-NGFF coordinate transformations passed to
+        ``ImageOmeZarrWrapper``.
+        Mutually exclusive with ``microns_per_pixel``.
+    to_coordinate_system
+        Coordinate-system key used only when ``sdata`` is provided and both
+        ``microns_per_pixel`` and ``coordinate_transformations`` are ``None``.
+        In that case, the transform is read from ``sdata.images[img_layer]``,
+        converted to an affine matrix on ``("c", "y", "x")``, and then mapped
+        to OME-NGFF ``coordinateTransformations``.
+        Typically this is the micron coordinate system.
+        Ignored otherwise.
     spot_radius_size_micron
         Spot radius in microns used by the spatial spot layer.
     spatial_key
         Key under ``obsm`` used for spot coordinates, e.g. ``"spatial"`` -> ``"obsm/spatial"``.
+        Note: it is assumed that the coordinates of these spots are in micron coordinates.
     cluster_key
         Key under ``obs`` used for cluster/cell-set annotations, e.g. ``"leiden"`` -> ``"obs/leiden"``.
         Set to ``None`` to disable cluster/cell-set views and color encoding.
@@ -271,7 +343,7 @@ def visium_hd(
         empty, ``qc_obs_feature_keys`` contains empty keys, or
         ``emb_radius_mode`` is not ``"auto"``/``"manual"``, or ``center`` is not a
         2-item tuple, or ``spot_radius_size_micron <= 0``, or ``emb_radius <= 0`` when
-        ``emb_radius_mode="manual"``.
+        ``emb_radius_mode="manual"``, or if required source inputs are missing.
 
     Examples
     --------
@@ -311,11 +383,65 @@ def visium_hd(
             raise ValueError("qc_obs_feature_keys cannot contain empty keys.")
         return normalized
 
+    if sdata is not None:
+        if img_layer is None:
+            raise ValueError("img_layer is required when sdata is provided.")
+        if table_layer is None:
+            raise ValueError("table_layer is required when sdata is provided.")
+        if img_source is not None:
+            logger.warning(
+                "Both sdata and img_source were provided; img_source is ignored and "
+                "image source is resolved from sdata.path/images/{}.",
+                img_layer,
+            )
+        if adata_source is not None:
+            logger.warning(
+                "Both sdata and adata_source were provided; adata_source is ignored and "
+                "table source is resolved from sdata.path/tables/{}.",
+                table_layer,
+            )
+        if base_dir is not None:
+            logger.warning(
+                "Both sdata and base_dir were provided; base_dir is ignored because "
+                "image/table sources are resolved from sdata.path."
+            )
+        if sdata.path is None:
+            raise ValueError(
+                "sdata.path is None. Provide a backed SpatialData object or pass img_source/adata_source directly."
+            )
+        img_source = Path(sdata.path) / "images" / img_layer
+        adata_source = Path(sdata.path) / "tables" / table_layer
+        base_dir = None
+    elif img_source is None or adata_source is None:
+        raise ValueError(
+            "Either provide sdata with img_layer and table_layer, or provide both img_source and adata_source."
+        )
+
     cluster_key = _normalize_optional_key(cluster_key, "cluster_key")
     embedding_key = _normalize_optional_key(embedding_key, "embedding_key")
     qc_obs_feature_keys = _normalize_qc_keys(qc_obs_feature_keys)
+    assert img_source is not None
+    assert adata_source is not None
     img_source, is_img_remote = _normalize_path_or_url(img_source, "img_source")
     adata_source, is_adata_remote = _normalize_path_or_url(adata_source, "adata_source")
+
+    # resolve the transformation:
+    if sdata is not None:
+        if coordinate_transformations is None and microns_per_pixel is None:
+            logger.info(
+                "Both coordinate_transformations and microns_per_pixel is None. "
+                "Fetching coordinate transformation from the SpatialData object."
+            )
+            coordinate_transformations = _spatialdata_transformation_to_ngff(
+                sdata,
+                layer=img_layer,
+                to_coordinate_system=to_coordinate_system,
+            )
+
+    image_coordinate_transformations = _resolve_image_coordinate_transformations(
+        coordinate_transformations=coordinate_transformations,
+        microns_per_pixel=microns_per_pixel,
+    )
 
     has_clusters = cluster_key is not None
     has_embedding = embedding_key is not None
@@ -363,6 +489,10 @@ def visium_hd(
     img_wrapper_kwargs: dict[str, object] = {
         "coordination_values": {"fileUid": _file_uuid},
     }
+    if image_coordinate_transformations is not None:
+        img_wrapper_kwargs["coordinate_transformations"] = (
+            image_coordinate_transformations
+        )
     img_wrapper_kwargs["img_url" if is_img_remote else "img_path"] = img_source
     dataset = vc.add_dataset(name=name).add_object(
         ImageOmeZarrWrapper(
