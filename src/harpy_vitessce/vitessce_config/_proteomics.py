@@ -32,7 +32,7 @@ def macsima(
     | None = None,  # local path relative to base_dir or remote URL
     base_dir: str | Path | None = None,
     name: str = "MACSima",
-    description: str = "MACSima image-only view",
+    description: str = "MACSima",
     schema_version: str = "1.0.18",
     center: tuple[float, float] | None = None,
     zoom: float | None = -4,
