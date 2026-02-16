@@ -429,7 +429,7 @@ def visium_hd(
     if sdata is not None:
         if coordinate_transformations is None and microns_per_pixel is None:
             logger.info(
-                "Both coordinate_transformations and microns_per_pixel is None."
+                "Both coordinate_transformations and microns_per_pixel is None. "
                 "Fetching coordinate transformation from the SpatialData object."
             )
             coordinate_transformations = _spatialdata_transformation_to_ngff(
