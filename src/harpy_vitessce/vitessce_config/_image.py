@@ -96,7 +96,9 @@ def build_image_layer_config(
         [
             {
                 "spatialTargetC": channel,
-                "spatialChannelColor": _channel_color(pos),
+                "spatialChannelColor": _channel_color(pos)
+                if len(selected_channels) > 1
+                else [255, 255, 255],
                 # TODO: yes -> override colors?
                 "spatialChannelVisible": True,
                 "spatialChannelWindow": None,
