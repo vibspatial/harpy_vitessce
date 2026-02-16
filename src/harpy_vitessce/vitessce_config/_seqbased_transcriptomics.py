@@ -548,10 +548,8 @@ def visium_hd(
 
     image_layer, can_render_as_rgb = _ImageLayerConfigBuilder(
         img_source=img_source,
-        is_img_remote=is_img_remote,
-        base_dir=base_dir,
         visualize_as_rgb=visualize_as_rgb,
-    ).build(file_uid=_file_uuid)
+    ).build(file_uid=_file_uuid, channels=None)
 
     vc.link_views_by_dict(
         linked_views,
