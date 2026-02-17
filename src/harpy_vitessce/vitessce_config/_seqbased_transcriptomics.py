@@ -227,6 +227,11 @@ def visium_hd(
     """
     Build a Vitessce configuration for exploring Visium HD data.
 
+    # TODO: compare how this spot based implementations compares to bin implementation as proposed here
+    # (i.e. for visium work with bins instead of spots, for other seq transcriptomics
+    # this will not always work, because they are aranged in a hexagon).
+    https://github.com/vitessce/vitessce-python/blob/main/docs/notebooks/spatial_data_visium_hd.ipynb
+
     Parameters
     ----------
     sdata
@@ -676,7 +681,7 @@ def visium_hd(
         )
 
     # note that it is also possible to create two spotlayers, one for qc, one for clusters+genes
-    #  but then we need two layer controllers, which looks kinda weird in the UI
+    # but then we need two layer controllers, which looks kinda weird in the UI
     linked_views = [spatial_plot, layer_controller]
     if spatial_qc is not None:
         linked_views.append(spatial_qc)

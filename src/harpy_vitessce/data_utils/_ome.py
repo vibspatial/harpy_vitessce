@@ -114,7 +114,10 @@ def xarray_to_ome_zarr(
             group=z_root,
             axes=axes,
             coordinate_transformations=coord_tfm,
-            storage_options=[{"chunks": chunks}] * len(pyramid),
+            # Use a single dict so ome-zarr copies options per level internally.
+            # A repeated-list form would share the same dict object and can cause
+            # only level 0 to receive explicit chunks.
+            storage_options={"chunks": chunks},
         )
 
     elif isinstance(tree_or_da, xr.DataArray):
@@ -198,6 +201,7 @@ def array_to_ome_zarr(
     microns_per_z: float | None = None,
     scale_factors: Sequence[int] | None = None,  # None -> no pyramid
     axes: Sequence[str] = ("c", "y", "x"),
+    zarr_format: int = 2,
 ) -> None:
     """
     Write an OME-Zarr image from a numpy/dask array with explicit axes.
@@ -225,6 +229,8 @@ def array_to_ome_zarr(
     axes : Sequence[str] | str
         Axis order as a sequence (e.g., ["c", "y", "x"]) or a string
         (e.g., "cyx" or "czyx").
+    zarr_format : int
+        Zarr format version to write. Supported values are ``2`` and ``3``.
     """
     channel_names = _normalize_channel_names(channel_names)
 
@@ -234,9 +240,17 @@ def array_to_ome_zarr(
     if isinstance(axes, str):
         axes = list(axes)
 
+    if zarr_format not in {2, 3}:
+        raise ValueError(f"zarr_format must be 2 or 3, got {zarr_format}.")
+
     try:
-        z_root = zarr.open_group(output_path, mode="w", zarr_format=2)
-    except TypeError:
+        z_root = zarr.open_group(output_path, mode="w", zarr_format=zarr_format)
+    except TypeError as e:
+        if zarr_format != 2:
+            raise ValueError(
+                "Requested zarr_format=3, but installed zarr does not support "
+                "the zarr_format argument. Upgrade zarr to v3+ or use zarr_format=2."
+            ) from e
         z_root = zarr.open_group(output_path, mode="w")
 
     axes_meta = []

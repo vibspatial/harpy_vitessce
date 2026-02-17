@@ -5,12 +5,22 @@ from pathlib import Path
 from loguru import logger
 from spatialdata import SpatialData
 from vitessce import (
+    AnnDataWrapper,
+    ImageOmeZarrWrapper,
+    ObsSegmentationsOmeZarrWrapper,
+    VitessceConfig,
+    hconcat,
+    vconcat,
+)
+from vitessce import (
+    Component as cm,
+)
+from vitessce import (
     CoordinationLevel as CL,
 )
 from vitessce import (
     CoordinationType as ct,
 )
-from vitessce import ImageOmeZarrWrapper, VitessceConfig, hconcat
 
 from harpy_vitessce.vitessce_config._constants import (
     LAYER_CONTROLLER_VIEW,
@@ -24,12 +34,16 @@ from harpy_vitessce.vitessce_config._image import (
 from harpy_vitessce.vitessce_config._utils import _normalize_path_or_url
 
 
-def macsima(
+def macsima(  # maybe we should rename this to proteomics
     sdata: SpatialData | None = None,
     img_layer: str | None = None,
+    labels_layer: str | None = None,
+    table_layer: str | None = None,
     img_source: str
     | Path
     | None = None,  # local path relative to base_dir or remote URL
+    labels_source: str | Path | None = None,
+    adata_source: str | Path | None = None,
     base_dir: str | Path | None = None,
     name: str = "MACSima",
     description: str = "MACSima",
@@ -44,7 +58,7 @@ def macsima(
     to_coordinate_system: str = "global",
 ) -> VitessceConfig:
     """
-    Build a Vitessce configuration for MACSima image-only visualization.
+    Build a Vitessce configuration for MACSima image/segmentation visualization.
 
     Parameters
     ----------
@@ -55,9 +69,26 @@ def macsima(
         Image layer name under ``images`` in ``sdata``. Required when ``sdata``
         is provided.
         Ignored when ``sdata`` is not provided.
+    labels_layer
+        Labels layer name under ``labels`` in ``sdata``.
+        When provided, segmentation boundaries can be rendered in spatial view.
+        Ignored when ``sdata`` is not provided.
+    table_layer
+        Table layer name under ``tables`` in ``sdata``. When provided together
+        with ``labels_layer``, enables feature coloring and lasso-based
+        selection via ``obsSets`` view.
+        Ignored when ``sdata`` is not provided.
     img_source
         Path/URL to an OME-Zarr image. Local paths are relative to ``base_dir``
         when provided.
+        Ignored when ``sdata`` is provided.
+    labels_source
+        Path/URL to an OME-Zarr labels segmentation (``obsSegmentations``).
+        Ignored when ``sdata`` is provided.
+    adata_source
+        Path/URL to an AnnData ``.zarr``/``.h5ad`` source with ``X`` available.
+        Observation indices must match segmentation label IDs when used with
+        ``labels_source``/``labels_layer``.
         Ignored when ``sdata`` is provided.
     base_dir
         Optional base directory for relative local paths in the config.
@@ -108,7 +139,9 @@ def macsima(
     Returns
     -------
     VitessceConfig
-        A configured Vitessce configuration object with image-only views.
+        A configured Vitessce configuration object with image-only views, and
+        optional segmentation/feature/obs-set views when labels and table data
+        are provided.
 
     Raises
     ------
@@ -117,6 +150,7 @@ def macsima(
         If ``sdata`` is provided but ``img_layer`` is missing.
         If neither ``img_source`` nor ``sdata`` is provided.
         If ``sdata.path`` is ``None``.
+        If a table source is provided without a labels source.
     """
     if sdata is not None:
         if img_layer is None:
@@ -126,6 +160,18 @@ def macsima(
                 "Both sdata and img_source were provided; img_source is ignored and "
                 "image source is resolved from sdata.path/images/{}.",
                 img_layer,
+            )
+        if labels_source is not None:
+            logger.warning(
+                "Both sdata and labels_source were provided; labels_source is ignored and "
+                "labels source is resolved from sdata.path/labels/{}.",
+                labels_layer,
+            )
+        if adata_source is not None:
+            logger.warning(
+                "Both sdata and adata_source were provided; adata_source is ignored and "
+                "table source is resolved from sdata.path/tables/{}.",
+                table_layer,
             )
         if base_dir is not None:
             logger.warning(
@@ -137,11 +183,32 @@ def macsima(
                 "sdata.path is None. Provide a backed SpatialData object or pass img_source directly."
             )
         img_source = Path(sdata.path) / "images" / img_layer
+        if labels_layer is not None:
+            labels_source = Path(sdata.path) / "labels" / labels_layer
+        if table_layer is not None:
+            adata_source = Path(sdata.path) / "tables" / table_layer
         base_dir = None
     elif img_source is None:
         raise ValueError("Either img_source or sdata must be provided.")
 
     img_source, is_img_remote = _normalize_path_or_url(img_source, "img_source")
+    if labels_source is not None:
+        labels_source, is_labels_remote = _normalize_path_or_url(
+            labels_source, "labels_source"
+        )
+    else:
+        is_labels_remote = False
+    if adata_source is not None:
+        adata_source, is_adata_remote = _normalize_path_or_url(
+            adata_source, "adata_source"
+        )
+    else:
+        is_adata_remote = False
+
+    if adata_source is not None and labels_source is None:
+        raise ValueError(
+            "labels_source/labels_layer is required when adata_source/table_layer is provided."
+        )
 
     # resolve the transformation:
     if sdata is not None:
@@ -160,17 +227,26 @@ def macsima(
         coordinate_transformations=coordinate_transformations,
         microns_per_pixel=microns_per_pixel,
     )
+    # TODO -> check that same transformation defined on labels layer if sdata is provided and fetched from labels layer. If not raise ValueError.
+
     if center is not None and len(center) != 2:
         raise ValueError("center must be a tuple of two floats: (x, y).")
     if not 0.0 <= layer_opacity <= 1.0:
         raise ValueError("layer_opacity must be between 0.0 and 1.0.")
 
+    all_sources_remote = (
+        is_img_remote
+        and (labels_source is None or is_labels_remote)
+        and (adata_source is None or is_adata_remote)
+    )
     vc = VitessceConfig(
         schema_version=schema_version,
         description=description,
         # base_dir only applies to local *_path entries.
         base_dir=(
-            None if is_img_remote else (str(base_dir) if base_dir is not None else None)
+            None
+            if all_sources_remote
+            else (str(base_dir) if base_dir is not None else None)
         ),
     )
 
@@ -200,11 +276,75 @@ def macsima(
         ImageOmeZarrWrapper(**img_wrapper_kwargs)
     )
 
+    labels_file_uuid: str | None = None
+    if labels_source is not None:
+        labels_file_uuid = f"seg_macsima_{uuid.uuid4()}"
+        seg_wrapper_kwargs: dict[str, object] = {
+            "coordination_values": {"fileUid": labels_file_uuid},
+        }
+        if image_coordinate_transformations is not None:
+            seg_wrapper_kwargs["coordinate_transformations"] = (
+                image_coordinate_transformations
+            )
+        seg_wrapper_kwargs["img_url" if is_labels_remote else "img_path"] = (
+            labels_source
+        )
+        dataset.add_object(ObsSegmentationsOmeZarrWrapper(**seg_wrapper_kwargs))
+
+    if adata_source is not None:
+        adata_wrapper_kwargs: dict[str, object] = {
+            "obs_feature_matrix_path": "X",
+            "coordination_values": {
+                "obsType": "cell",
+                "featureType": "marker",
+                "featureValueType": "intensity",
+            },
+        }
+        adata_wrapper_kwargs["adata_url" if is_adata_remote else "adata_path"] = (
+            adata_source
+        )
+        dataset.add_object(AnnDataWrapper(**adata_wrapper_kwargs))
+
     spatial_plot = vc.add_view(SPATIAL_VIEW, dataset=dataset)
     layer_controller = vc.add_view(LAYER_CONTROLLER_VIEW, dataset=dataset)
+    feature_list = (
+        vc.add_view(cm.FEATURE_LIST, dataset=dataset)
+        if adata_source is not None
+        else None
+    )
+    obs_sets = (
+        vc.add_view(cm.OBS_SETS, dataset=dataset) if adata_source is not None else None
+    )
 
     if spatial_coordination_scopes:
         spatial_plot.use_coordination(*spatial_coordination_scopes)
+
+    obs_color = None
+    if adata_source is not None and feature_list is not None and obs_sets is not None:
+        obs_type, feat_type, feat_val_type, obs_color, feat_sel, obs_set_sel = (
+            vc.add_coordination(
+                ct.OBS_TYPE,
+                ct.FEATURE_TYPE,
+                ct.FEATURE_VALUE_TYPE,
+                ct.OBS_COLOR_ENCODING,
+                ct.FEATURE_SELECTION,
+                ct.OBS_SET_SELECTION,
+            )
+        )
+        obs_type.set_value("cell")
+        feat_type.set_value("marker")
+        feat_val_type.set_value("intensity")
+        obs_color.set_value("geneSelection")
+        feat_sel.set_value(None)
+        obs_set_sel.set_value(None)
+
+        spatial_plot.use_coordination(
+            obs_type, feat_type, feat_val_type, obs_color, feat_sel, obs_set_sel
+        )
+        feature_list.use_coordination(
+            obs_type, obs_color, feat_sel, feat_type, feat_val_type
+        )
+        obs_sets.use_coordination(obs_type, obs_set_sel, obs_color)
 
     image_layer = build_image_layer_config(
         file_uid=file_uuid,
@@ -218,7 +358,36 @@ def macsima(
         [spatial_plot, layer_controller],
         {"imageLayer": CL([image_layer])},
     )
+
+    if labels_file_uuid is not None:
+        segmentation_channel: dict[str, object] = {
+            "spatialTargetC": 0,
+            "spatialChannelOpacity": 0.35,
+        }
+        if obs_color is not None:
+            segmentation_channel["obsColorEncoding"] = obs_color
+            segmentation_channel["featureValueColormapRange"] = [0, 1]
+        vc.link_views_by_dict(
+            [spatial_plot, layer_controller],
+            {
+                "segmentationLayer": CL(
+                    [
+                        {
+                            "fileUid": labels_file_uuid,
+                            "segmentationChannel": CL([segmentation_channel]),
+                        }
+                    ]
+                )
+            },
+        )
+
     layer_controller.set_props(disableChannelsIfRgbDetected=False)
-    vc.layout(hconcat(spatial_plot, layer_controller, split=[8, 4]))
+    if feature_list is not None and obs_sets is not None:
+        control_column = vconcat(
+            layer_controller, feature_list, obs_sets, split=[3, 5, 4]
+        )
+        vc.layout(hconcat(spatial_plot, control_column, split=[8, 4]))
+    else:
+        vc.layout(hconcat(spatial_plot, layer_controller, split=[8, 4]))
 
     return vc
