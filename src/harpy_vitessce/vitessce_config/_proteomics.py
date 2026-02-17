@@ -606,28 +606,55 @@ def macsima(  # maybe we should rename this to proteomics
     """
 
     layer_controller.set_props(disableChannelsIfRgbDetected=False)
-    control_views = [layer_controller]
-    if feature_list is not None:
-        control_views.append(feature_list)
-    if obs_sets is not None:
-        control_views.append(obs_sets)
-    main_column = (
-        vconcat(spatial_plot, umap, split=[8, 4]) if umap is not None else spatial_plot
-    )
+    # Layout strategy:
+    # - No feature list: 2 columns (spatial + right stack).
+    # - Feature list present: 3 columns (spatial + middle stack + right stack).
+    if feature_list is None:
+        # Requested order in 2-column mode:
+        # layer_controller -> heatmap -> umap -> obs_sets
+        right_views = [layer_controller]
+        if heatmap is not None:
+            right_views.append(heatmap)
+        if umap is not None:
+            right_views.append(umap)
+        if obs_sets is not None:
+            right_views.append(obs_sets)
 
-    if len(control_views) == 1:
-        control_column = layer_controller
-    else:
-        if feature_list is not None and obs_sets is not None:
-            control_split = [3, 5, 4]
+        if len(right_views) == 1:
+            right_column = right_views[0]
+        elif len(right_views) == 2:
+            right_column = vconcat(*right_views, split=[4, 8])
+        elif len(right_views) == 3:
+            # Keep final panel compact (typically obs_sets).
+            right_column = vconcat(*right_views, split=[3, 6, 3])
         else:
-            control_split = [3, 9]
-        control_column = vconcat(*control_views, split=control_split)
+            # layer_controller, heatmap, umap, obs_sets (obs_sets compact).
+            right_column = vconcat(*right_views, split=[2, 4, 4, 2])
 
-    if heatmap is not None:
-        layout_split = [5, 5, 2] if umap is not None else [6, 4, 2]
-        vc.layout(hconcat(main_column, heatmap, control_column, split=layout_split))
+        vc.layout(hconcat(spatial_plot, right_column, split=[8, 4]))
     else:
-        vc.layout(hconcat(main_column, control_column, split=[8, 4]))
+        middle_views = [layer_controller]
+        if heatmap is not None:
+            middle_views.append(heatmap)
+        if umap is not None:
+            middle_views.append(umap)
+
+        if len(middle_views) == 1:
+            middle_column = middle_views[0]
+        elif len(middle_views) == 2:
+            middle_column = vconcat(*middle_views, split=[4, 8])
+        else:
+            middle_column = vconcat(*middle_views, split=[3, 5, 4])
+
+        right_views = [feature_list]
+        if obs_sets is not None:
+            right_views.append(obs_sets)
+        if len(right_views) == 1:
+            right_column = right_views[0]
+        else:
+            # Keep obs_sets compact in 3-column mode too.
+            right_column = vconcat(*right_views, split=[8, 4])
+
+        vc.layout(hconcat(spatial_plot, middle_column, right_column, split=[6, 3, 3]))
 
     return vc
