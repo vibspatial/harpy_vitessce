@@ -58,6 +58,7 @@ def macsima(  # maybe we should rename this to proteomics
     coordinate_transformations: Sequence[Mapping[str, object]] | None = None,
     to_coordinate_system: str = "global",
     visualize_feature_matrix: bool = False,
+    visualize_heatmap: bool = False,
     spatial_key: str = "spatial",
     labels_key: str = "cell_ID",
     labels_key_display_name: str = "cell ID",
@@ -85,8 +86,8 @@ def macsima(  # maybe we should rename this to proteomics
     table_layer
         Table layer name under ``tables`` in ``sdata``. When provided together
         with ``labels_layer``, enables feature-matrix and/or cluster coloring
-        and/or embedding visualization (depending on
-        ``visualize_feature_matrix``, ``cluster_key`` and ``embedding_key``).
+        and/or embedding visualization (depending on ``visualize_feature_matrix``,
+        ``visualize_heatmap``, ``cluster_key`` and ``embedding_key``).
         Ignored when ``sdata`` is not provided.
     img_source
         Path/URL to an OME-Zarr image. Local paths are relative to ``base_dir``
@@ -97,15 +98,20 @@ def macsima(  # maybe we should rename this to proteomics
         Ignored when ``sdata`` is provided.
     adata_source
         Path/URL to an AnnData ``.zarr``/``.h5ad`` source.
-        Required when ``visualize_feature_matrix=True`` and/or
-        ``cluster_key``/``embedding_key`` is provided.
-        ``X`` must be available only when ``visualize_feature_matrix=True``.
+        Required when ``visualize_feature_matrix=True``,
+        ``visualize_heatmap=True`` and/or ``cluster_key``/``embedding_key`` is
+        provided.
+        ``X`` must be available when either ``visualize_feature_matrix=True``
+        or ``visualize_heatmap=True``.
         Observation indices must match segmentation label IDs when used with
         ``labels_source``/``labels_layer``.
         Ignored when ``sdata`` is provided.
     visualize_feature_matrix
         If ``True``, expose the AnnData ``X`` matrix in a feature list and
         enable ``geneSelection``-based coloring.
+    visualize_heatmap
+        If ``True``, expose a heatmap view driven by the AnnData ``X`` matrix.
+        This is independent from ``visualize_feature_matrix``.
     spatial_key
         Key under ``obsm`` used for cell coordinates,
         e.g. ``"spatial"`` -> ``"obsm/spatial"``.
@@ -177,8 +183,8 @@ def macsima(  # maybe we should rename this to proteomics
     -------
     VitessceConfig
         A configured Vitessce configuration object with image-only views, and
-        optional segmentation/feature/obs-set/embedding views depending on the
-        selected AnnData visualization options.
+        optional segmentation/feature/obs-set/embedding/heatmap views depending
+        on the selected AnnData visualization options.
 
     Raises
     ------
@@ -215,9 +221,11 @@ def macsima(  # maybe we should rename this to proteomics
         raise ValueError("spatial_key must be a non-empty string.")
 
     has_feature_matrix = visualize_feature_matrix
+    has_heatmap = visualize_heatmap
+    has_matrix_data = has_feature_matrix or has_heatmap
     has_clusters = cluster_key is not None
     has_embedding = embedding_key is not None
-    needs_adata = has_feature_matrix or has_clusters or has_embedding
+    needs_adata = has_matrix_data or has_clusters or has_embedding
     if needs_adata and not labels_key:
         raise ValueError(
             "labels_key must be a non-empty string when AnnData-based visualization is requested."
@@ -233,7 +241,8 @@ def macsima(  # maybe we should rename this to proteomics
         if needs_adata and table_layer is None:
             raise ValueError(
                 "table_layer is required when sdata is provided and "
-                "visualize_feature_matrix=True or cluster_key/embedding_key is provided."
+                "visualize_feature_matrix=True or visualize_heatmap=True or "
+                "cluster_key/embedding_key is provided."
             )
         if img_source is not None:
             logger.warning(
@@ -274,7 +283,8 @@ def macsima(  # maybe we should rename this to proteomics
             else:
                 logger.warning(
                     "table_layer was provided, but both visualize_feature_matrix=False "
-                    "and cluster_key is None; table data is ignored."
+                    "and visualize_heatmap=False and cluster_key/embedding_key are None; "
+                    "table data is ignored."
                 )
                 adata_source = None
         else:
@@ -285,8 +295,9 @@ def macsima(  # maybe we should rename this to proteomics
 
     if not needs_adata and adata_source is not None:
         logger.warning(
-            "adata_source was provided, but both visualize_feature_matrix=False and "
-            "cluster_key/embedding_key are None; AnnData is ignored."
+            "adata_source was provided, but visualize_feature_matrix=False, "
+            "visualize_heatmap=False and cluster_key/embedding_key are None; "
+            "AnnData is ignored."
         )
         adata_source = None
 
@@ -306,13 +317,13 @@ def macsima(  # maybe we should rename this to proteomics
 
     if needs_adata and adata_source is None:
         raise ValueError(
-            "adata_source/table_layer is required when visualize_feature_matrix=True "
-            "or cluster_key/embedding_key is provided."
+            "adata_source/table_layer is required when visualize_feature_matrix=True, "
+            "visualize_heatmap=True or cluster_key/embedding_key is provided."
         )
     if needs_adata and labels_source is None:
         raise ValueError(
-            "labels_source/labels_layer is required when visualize_feature_matrix=True "
-            "or cluster_key/embedding_key is provided."
+            "labels_source/labels_layer is required when visualize_feature_matrix=True, "
+            "visualize_heatmap=True or cluster_key/embedding_key is provided."
         )
 
     # resolve the transformation:
@@ -402,10 +413,10 @@ def macsima(  # maybe we should rename this to proteomics
             "obs_locations_path": f"obsm/{spatial_key}",
             "obs_labels_paths": f"obs/{labels_key}",
             "obs_labels_names": labels_key_display_name,
-            "obs_feature_matrix_path": "X" if has_feature_matrix else None,
+            "obs_feature_matrix_path": "X" if has_matrix_data else None,
             "coordination_values": {"obsType": "cell"},
         }
-        if has_feature_matrix:
+        if has_matrix_data:
             adata_wrapper_kwargs["coordination_values"].update(
                 {"featureType": "marker", "featureValueType": "intensity"}
             )
@@ -427,6 +438,7 @@ def macsima(  # maybe we should rename this to proteomics
     feature_list = (
         vc.add_view(cm.FEATURE_LIST, dataset=dataset) if has_feature_matrix else None
     )
+    heatmap = vc.add_view(cm.HEATMAP, dataset=dataset) if has_heatmap else None
     obs_sets = vc.add_view(cm.OBS_SETS, dataset=dataset) if has_clusters else None
     umap = (
         vc.add_view(cm.SCATTERPLOT, dataset=dataset, mapping=embedding_display_name)
@@ -438,7 +450,7 @@ def macsima(  # maybe we should rename this to proteomics
         spatial_plot.use_coordination(*spatial_coordination_scopes)
 
     obs_color = None
-    if has_feature_matrix and has_clusters:
+    if has_matrix_data and has_clusters:
         (
             obs_type,
             feat_type,
@@ -472,11 +484,15 @@ def macsima(  # maybe we should rename this to proteomics
             )
         if obs_sets is not None:
             obs_sets.use_coordination(obs_type, obs_set_sel, obs_color)
+        if heatmap is not None:
+            heatmap.use_coordination(
+                obs_type, feat_type, feat_val_type, feat_sel, obs_set_sel
+            )
         if umap is not None:
             umap.use_coordination(
                 obs_type, feat_type, feat_val_type, obs_color, feat_sel, obs_set_sel
             )
-    elif has_feature_matrix:
+    elif has_matrix_data:
         obs_type, feat_type, feat_val_type, obs_color, feat_sel = vc.add_coordination(
             ct.OBS_TYPE,
             ct.FEATURE_TYPE,
@@ -497,8 +513,12 @@ def macsima(  # maybe we should rename this to proteomics
             feature_list.use_coordination(
                 obs_type, obs_color, feat_sel, feat_type, feat_val_type
             )
+        if heatmap is not None:
+            heatmap.use_coordination(obs_type, feat_type, feat_val_type, feat_sel)
         if umap is not None:
-            umap.use_coordination(obs_type, feat_type, feat_val_type, obs_color, feat_sel)
+            umap.use_coordination(
+                obs_type, feat_type, feat_val_type, obs_color, feat_sel
+            )
     elif has_clusters:
         obs_type, obs_color, obs_set_sel = vc.add_coordination(
             ct.OBS_TYPE,
@@ -542,7 +562,7 @@ def macsima(  # maybe we should rename this to proteomics
         }
         if obs_color is not None:
             segmentation_channel["obsColorEncoding"] = obs_color
-        if has_feature_matrix:
+        if has_matrix_data:
             segmentation_channel["featureValueColormapRange"] = [0, 1]
         vc.link_views_by_dict(
             [spatial_plot, layer_controller],
@@ -591,16 +611,23 @@ def macsima(  # maybe we should rename this to proteomics
         control_views.append(feature_list)
     if obs_sets is not None:
         control_views.append(obs_sets)
-    main_column = vconcat(spatial_plot, umap, split=[8, 4]) if umap is not None else spatial_plot
+    main_column = (
+        vconcat(spatial_plot, umap, split=[8, 4]) if umap is not None else spatial_plot
+    )
 
     if len(control_views) == 1:
-        vc.layout(hconcat(main_column, layer_controller, split=[8, 4]))
+        control_column = layer_controller
     else:
         if feature_list is not None and obs_sets is not None:
             control_split = [3, 5, 4]
         else:
             control_split = [3, 9]
         control_column = vconcat(*control_views, split=control_split)
+
+    if heatmap is not None:
+        layout_split = [5, 5, 2] if umap is not None else [6, 4, 2]
+        vc.layout(hconcat(main_column, heatmap, control_column, split=layout_split))
+    else:
         vc.layout(hconcat(main_column, control_column, split=[8, 4]))
 
     return vc
