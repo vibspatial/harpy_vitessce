@@ -109,9 +109,9 @@ def macsima(  # maybe we should rename this to proteomics
     labels_key
         Key under ``obs`` used for cell labels,
         e.g. ``"cell_ID"`` -> ``"obs/cell_ID"``.
-        These keys should map to the provided segmentations mask via ``labels_source`` or labels_layer.
+        These keys should map to the provided segmentations mask via ``labels_source`` or labels_layer. # TODO: currently ignored by vitessce
     labels_key_display_name
-        Display label for ``labels_key`` in the Vitessce UI.
+        Display label for ``labels_key`` in the Vitessce UI.  # TODO: currently ignored by vitessce
     cluster_key
         Optional key under ``obs`` used for categorical cell-set annotations,
         e.g. ``"kronos"`` -> ``"obs/kronos"``.
@@ -497,7 +497,7 @@ def macsima(  # maybe we should rename this to proteomics
     if labels_file_uuid is not None:
         segmentation_channel: dict[str, object] = {
             "spatialTargetC": 0,
-            "spatialChannelOpacity": 0.35,
+            "spatialChannelOpacity": 0.75,
         }
         if obs_color is not None:
             segmentation_channel["obsColorEncoding"] = obs_color
