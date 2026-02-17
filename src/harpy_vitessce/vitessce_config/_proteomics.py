@@ -63,6 +63,8 @@ def macsima(  # maybe we should rename this to proteomics
     labels_key_display_name: str = "cell ID",
     cluster_key: str | None = None,
     cluster_key_display_name: str = "Clusters",
+    embedding_key: str | None = None,
+    embedding_display_name: str = "UMAP",
 ) -> VitessceConfig:
     """
     Build a Vitessce configuration for MACSima image/segmentation visualization.
@@ -83,7 +85,8 @@ def macsima(  # maybe we should rename this to proteomics
     table_layer
         Table layer name under ``tables`` in ``sdata``. When provided together
         with ``labels_layer``, enables feature-matrix and/or cluster coloring
-        (depending on ``visualize_feature_matrix`` and ``cluster_key``).
+        and/or embedding visualization (depending on
+        ``visualize_feature_matrix``, ``cluster_key`` and ``embedding_key``).
         Ignored when ``sdata`` is not provided.
     img_source
         Path/URL to an OME-Zarr image. Local paths are relative to ``base_dir``
@@ -95,7 +98,7 @@ def macsima(  # maybe we should rename this to proteomics
     adata_source
         Path/URL to an AnnData ``.zarr``/``.h5ad`` source.
         Required when ``visualize_feature_matrix=True`` and/or
-        ``cluster_key`` is provided.
+        ``cluster_key``/``embedding_key`` is provided.
         ``X`` must be available only when ``visualize_feature_matrix=True``.
         Observation indices must match segmentation label IDs when used with
         ``labels_source``/``labels_layer``.
@@ -118,6 +121,12 @@ def macsima(  # maybe we should rename this to proteomics
         Set to ``None`` to disable cluster/cell-set views and color encoding.
     cluster_key_display_name
         Display label for the cluster annotation in the Vitessce UI.
+    embedding_key
+        Optional key under ``obsm`` used for embedding coordinates,
+        e.g. ``"X_umap"`` -> ``"obsm/X_umap"``.
+        Set to ``None`` to disable the UMAP scatterplot view.
+    embedding_display_name
+        Display label for the embedding in the Vitessce UI and scatterplot mapping.
     base_dir
         Optional base directory for relative local paths in the config.
         Ignored when ``img_source`` is a remote URL.
@@ -168,14 +177,16 @@ def macsima(  # maybe we should rename this to proteomics
     -------
     VitessceConfig
         A configured Vitessce configuration object with image-only views, and
-        optional segmentation/feature/obs-set views depending on the selected
-        AnnData visualization options.
+        optional segmentation/feature/obs-set/embedding views depending on the
+        selected AnnData visualization options.
 
     Raises
     ------
     ValueError
         If ``cluster_key`` is provided as an empty string.
         If ``cluster_key_display_name`` is empty when ``cluster_key`` is provided.
+        If ``embedding_key`` is provided as an empty string.
+        If ``embedding_display_name`` is empty when ``embedding_key`` is provided.
         If ``spatial_key`` is empty.
         If AnnData-based visualization is requested and ``labels_key`` is empty.
         If AnnData-based visualization is requested and ``labels_key_display_name`` is empty.
@@ -194,12 +205,19 @@ def macsima(  # maybe we should rename this to proteomics
         raise ValueError(
             "cluster_key_display_name must be non-empty when cluster_key is provided."
         )
+    if embedding_key is not None and not embedding_key:
+        raise ValueError("embedding_key must be a non-empty string when provided.")
+    if embedding_key is not None and not embedding_display_name:
+        raise ValueError(
+            "embedding_display_name must be non-empty when embedding_key is provided."
+        )
     if not spatial_key:
         raise ValueError("spatial_key must be a non-empty string.")
 
     has_feature_matrix = visualize_feature_matrix
     has_clusters = cluster_key is not None
-    needs_adata = has_feature_matrix or has_clusters
+    has_embedding = embedding_key is not None
+    needs_adata = has_feature_matrix or has_clusters or has_embedding
     if needs_adata and not labels_key:
         raise ValueError(
             "labels_key must be a non-empty string when AnnData-based visualization is requested."
@@ -215,7 +233,7 @@ def macsima(  # maybe we should rename this to proteomics
         if needs_adata and table_layer is None:
             raise ValueError(
                 "table_layer is required when sdata is provided and "
-                "visualize_feature_matrix=True or cluster_key is provided."
+                "visualize_feature_matrix=True or cluster_key/embedding_key is provided."
             )
         if img_source is not None:
             logger.warning(
@@ -268,7 +286,7 @@ def macsima(  # maybe we should rename this to proteomics
     if not needs_adata and adata_source is not None:
         logger.warning(
             "adata_source was provided, but both visualize_feature_matrix=False and "
-            "cluster_key is None; AnnData is ignored."
+            "cluster_key/embedding_key are None; AnnData is ignored."
         )
         adata_source = None
 
@@ -289,12 +307,12 @@ def macsima(  # maybe we should rename this to proteomics
     if needs_adata and adata_source is None:
         raise ValueError(
             "adata_source/table_layer is required when visualize_feature_matrix=True "
-            "or cluster_key is provided."
+            "or cluster_key/embedding_key is provided."
         )
     if needs_adata and labels_source is None:
         raise ValueError(
             "labels_source/labels_layer is required when visualize_feature_matrix=True "
-            "or cluster_key is provided."
+            "or cluster_key/embedding_key is provided."
         )
 
     # resolve the transformation:
@@ -395,6 +413,10 @@ def macsima(  # maybe we should rename this to proteomics
             assert cluster_key is not None
             adata_wrapper_kwargs["obs_set_paths"] = [f"obs/{cluster_key}"]
             adata_wrapper_kwargs["obs_set_names"] = [cluster_key_display_name]
+        if has_embedding:
+            assert embedding_key is not None
+            adata_wrapper_kwargs["obs_embedding_paths"] = [f"obsm/{embedding_key}"]
+            adata_wrapper_kwargs["obs_embedding_names"] = [embedding_display_name]
         adata_wrapper_kwargs["adata_url" if is_adata_remote else "adata_path"] = (
             adata_source
         )
@@ -406,6 +428,11 @@ def macsima(  # maybe we should rename this to proteomics
         vc.add_view(cm.FEATURE_LIST, dataset=dataset) if has_feature_matrix else None
     )
     obs_sets = vc.add_view(cm.OBS_SETS, dataset=dataset) if has_clusters else None
+    umap = (
+        vc.add_view(cm.SCATTERPLOT, dataset=dataset, mapping=embedding_display_name)
+        if has_embedding
+        else None
+    )
 
     if spatial_coordination_scopes:
         spatial_plot.use_coordination(*spatial_coordination_scopes)
@@ -445,6 +472,10 @@ def macsima(  # maybe we should rename this to proteomics
             )
         if obs_sets is not None:
             obs_sets.use_coordination(obs_type, obs_set_sel, obs_color)
+        if umap is not None:
+            umap.use_coordination(
+                obs_type, feat_type, feat_val_type, obs_color, feat_sel, obs_set_sel
+            )
     elif has_feature_matrix:
         obs_type, feat_type, feat_val_type, obs_color, feat_sel = vc.add_coordination(
             ct.OBS_TYPE,
@@ -466,6 +497,8 @@ def macsima(  # maybe we should rename this to proteomics
             feature_list.use_coordination(
                 obs_type, obs_color, feat_sel, feat_type, feat_val_type
             )
+        if umap is not None:
+            umap.use_coordination(obs_type, feat_type, feat_val_type, obs_color, feat_sel)
     elif has_clusters:
         obs_type, obs_color, obs_set_sel = vc.add_coordination(
             ct.OBS_TYPE,
@@ -479,6 +512,14 @@ def macsima(  # maybe we should rename this to proteomics
         spatial_plot.use_coordination(obs_type, obs_color, obs_set_sel)
         if obs_sets is not None:
             obs_sets.use_coordination(obs_type, obs_set_sel, obs_color)
+        if umap is not None:
+            umap.use_coordination(obs_type, obs_color, obs_set_sel)
+    elif has_embedding:
+        (obs_type,) = vc.add_coordination(ct.OBS_TYPE)
+        obs_type.set_value("cell")
+        spatial_plot.use_coordination(obs_type)
+        if umap is not None:
+            umap.use_coordination(obs_type)
 
     image_layer = build_image_layer_config(
         file_uid=file_uuid,
@@ -550,15 +591,16 @@ def macsima(  # maybe we should rename this to proteomics
         control_views.append(feature_list)
     if obs_sets is not None:
         control_views.append(obs_sets)
+    main_column = vconcat(spatial_plot, umap, split=[8, 4]) if umap is not None else spatial_plot
 
     if len(control_views) == 1:
-        vc.layout(hconcat(spatial_plot, layer_controller, split=[8, 4]))
+        vc.layout(hconcat(main_column, layer_controller, split=[8, 4]))
     else:
         if feature_list is not None and obs_sets is not None:
             control_split = [3, 5, 4]
         else:
             control_split = [3, 9]
         control_column = vconcat(*control_views, split=control_split)
-        vc.layout(hconcat(spatial_plot, control_column, split=[8, 4]))
+        vc.layout(hconcat(main_column, control_column, split=[8, 4]))
 
     return vc
