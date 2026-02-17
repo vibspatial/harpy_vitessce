@@ -9,6 +9,7 @@ from vitessce import (
     ImageOmeZarrWrapper,
     ObsSegmentationsOmeZarrWrapper,
     VitessceConfig,
+    get_initial_coordination_scope_prefix,
     hconcat,
     vconcat,
 )
@@ -57,6 +58,9 @@ def macsima(  # maybe we should rename this to proteomics
     coordinate_transformations: Sequence[Mapping[str, object]] | None = None,
     to_coordinate_system: str = "global",
     visualize_feature_matrix: bool = False,
+    spatial_key: str = "spatial",
+    labels_key: str = "cell_ID",
+    labels_key_display_name: str = "cell ID",
     cluster_key: str | None = None,
     cluster_key_display_name: str = "Clusters",
 ) -> VitessceConfig:
@@ -99,6 +103,15 @@ def macsima(  # maybe we should rename this to proteomics
     visualize_feature_matrix
         If ``True``, expose the AnnData ``X`` matrix in a feature list and
         enable ``geneSelection``-based coloring.
+    spatial_key
+        Key under ``obsm`` used for cell coordinates,
+        e.g. ``"spatial"`` -> ``"obsm/spatial"``.
+    labels_key
+        Key under ``obs`` used for cell labels,
+        e.g. ``"cell_ID"`` -> ``"obs/cell_ID"``.
+        These keys should map to the provided segmentations mask via ``labels_source`` or labels_layer.
+    labels_key_display_name
+        Display label for ``labels_key`` in the Vitessce UI.
     cluster_key
         Optional key under ``obs`` used for categorical cell-set annotations,
         e.g. ``"kronos"`` -> ``"obs/kronos"``.
@@ -163,6 +176,9 @@ def macsima(  # maybe we should rename this to proteomics
     ValueError
         If ``cluster_key`` is provided as an empty string.
         If ``cluster_key_display_name`` is empty when ``cluster_key`` is provided.
+        If ``spatial_key`` is empty.
+        If AnnData-based visualization is requested and ``labels_key`` is empty.
+        If AnnData-based visualization is requested and ``labels_key_display_name`` is empty.
         If ``center`` is provided but is not a 2-item tuple.
         If ``sdata`` is provided but ``img_layer`` is missing.
         If neither ``img_source`` nor ``sdata`` is provided.
@@ -178,10 +194,20 @@ def macsima(  # maybe we should rename this to proteomics
         raise ValueError(
             "cluster_key_display_name must be non-empty when cluster_key is provided."
         )
+    if not spatial_key:
+        raise ValueError("spatial_key must be a non-empty string.")
 
     has_feature_matrix = visualize_feature_matrix
     has_clusters = cluster_key is not None
     needs_adata = has_feature_matrix or has_clusters
+    if needs_adata and not labels_key:
+        raise ValueError(
+            "labels_key must be a non-empty string when AnnData-based visualization is requested."
+        )
+    if needs_adata and not labels_key_display_name:
+        raise ValueError(
+            "labels_key_display_name must be non-empty when AnnData-based visualization is requested."
+        )
 
     if sdata is not None:
         if img_layer is None:
@@ -355,6 +381,9 @@ def macsima(  # maybe we should rename this to proteomics
     if needs_adata:
         assert adata_source is not None
         adata_wrapper_kwargs: dict[str, object] = {
+            "obs_locations_path": f"obsm/{spatial_key}",
+            "obs_labels_paths": f"obs/{labels_key}",
+            "obs_labels_names": labels_key_display_name,
             "obs_feature_matrix_path": "X" if has_feature_matrix else None,
             "coordination_values": {"obsType": "cell"},
         }
@@ -401,7 +430,9 @@ def macsima(  # maybe we should rename this to proteomics
         obs_type.set_value("cell")
         feat_type.set_value("marker")
         feat_val_type.set_value("intensity")
-        obs_color.set_value("cellSetSelection")  # we default to cluster key coloring
+        obs_color.set_value(
+            "cellSetSelection"
+        )  # we default to cluster key coloring if we can choose between features and clusters.
         feat_sel.set_value(None)
         obs_set_sel.set_value(None)
 
@@ -460,6 +491,7 @@ def macsima(  # maybe we should rename this to proteomics
     vc.link_views_by_dict(
         [spatial_plot, layer_controller],
         {"imageLayer": CL([image_layer])},
+        scope_prefix=get_initial_coordination_scope_prefix("A", "image"),
     )
 
     if labels_file_uuid is not None:
@@ -483,7 +515,34 @@ def macsima(  # maybe we should rename this to proteomics
                     ]
                 )
             },
+            scope_prefix=get_initial_coordination_scope_prefix("A", "obsSegmentations"),
         )
+
+    """
+    # lasso broken on segmentationlayer.
+    if has_clusters or has_feature_matrix:
+        vc.link_views_by_dict(
+            [spatial_plot, layer_controller],
+            {
+                "spotLayer": CL(
+                    [
+                        {
+                            "obsType": obs_type,
+                            "spatialLayerVisible": True,
+                            "spatialLayerOpacity": 0.2,
+                            "spatialSpotRadius": 1.5,
+                            "spatialSpotFilled": True,
+                            "spatialSpotStrokeWidth": 0.0,
+                            "spatialLayerColor": [255, 255, 255],
+                            "tooltipsVisible": True,
+                            "tooltipCrosshairsVisible": True,
+                        }
+                    ]
+                ),
+            },
+            scope_prefix=get_initial_coordination_scope_prefix("A", "obsSpots"),
+        )
+    """
 
     layer_controller.set_props(disableChannelsIfRgbDetected=False)
     control_views = [layer_controller]
