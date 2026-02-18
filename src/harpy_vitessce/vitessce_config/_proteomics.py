@@ -8,6 +8,7 @@ from vitessce import (
     AnnDataWrapper,
     ImageOmeZarrWrapper,
     ObsSegmentationsOmeZarrWrapper,
+    SpatialDataWrapper,
     VitessceConfig,
     get_initial_coordination_scope_prefix,
     hconcat,
@@ -33,6 +34,513 @@ from harpy_vitessce.vitessce_config._image import (
     build_image_layer_config,
 )
 from harpy_vitessce.vitessce_config._utils import _normalize_path_or_url
+
+
+def proteomics_sdata(
+    sdata_path: str | Path,
+    img_layer: str | None = None,
+    labels_layer: str | None = None,
+    table_layer: str | None = None,
+    base_dir: str | Path | None = None,
+    name: str = "MACSima",
+    description: str = "MACSima",
+    schema_version: str = "1.0.18",
+    center: tuple[float, float] | None = None,
+    zoom: float | None = -4,
+    channels: Sequence[int | str] | None = None,
+    palette: Sequence[str] | None = None,
+    layer_opacity: float = 1.0,
+    microns_per_pixel_image: float | tuple[float, float] | None = None,
+    coordinate_transformations_image: Sequence[Mapping[str, object]] | None = None,
+    microns_per_pixel_mask: float | tuple[float, float] | None = None,
+    coordinate_transformations_mask: Sequence[Mapping[str, object]] | None = None,
+    to_coordinate_system: str = "global",
+    visualize_feature_matrix: bool = False,
+    visualize_heatmap: bool = False,
+    # spatial_key: str = "spatial", # not necessary for this type of visualizations.
+    # labels_key: str = "cell_ID",
+    # labels_key_display_name: str = "cell ID",
+    cluster_key: str | None = None,
+    cluster_key_display_name: str = "Clusters",
+    embedding_key: str | None = None,
+    embedding_display_name: str = "UMAP",
+) -> VitessceConfig:
+    """
+    Build a Vitessce configuration for MACSima image/segmentation visualization.
+
+    Parameters
+    ----------
+    sdata
+        ``SpatialData`` object. When provided, image source is resolved
+        as ``sdata.path / "images" / img_layer``.
+    img_layer
+        Image layer name under ``images`` in ``sdata``. Required when ``sdata``
+        is provided.
+        Ignored when ``sdata`` is not provided.
+    labels_layer
+        Labels layer name under ``labels`` in ``sdata``.
+        When provided, segmentation boundaries can be rendered in spatial view.
+        Ignored when ``sdata`` is not provided.
+    table_layer
+        Table layer name under ``tables`` in ``sdata``. When provided together
+        with ``labels_layer``, enables feature-matrix and/or cluster coloring
+        and/or embedding visualization (depending on ``visualize_feature_matrix``,
+        ``visualize_heatmap``, ``cluster_key`` and ``embedding_key``).
+        Ignored when ``sdata`` is not provided.
+    visualize_feature_matrix
+        If ``True``, expose the AnnData ``X`` matrix in a feature list and
+        enable ``geneSelection``-based coloring.
+    visualize_heatmap
+        If ``True``, expose a heatmap view driven by the AnnData ``X`` matrix.
+        This is independent from ``visualize_feature_matrix``.
+    labels_key
+        Key under ``obs`` used for cell labels,
+        e.g. ``"cell_ID"`` -> ``"obs/cell_ID"``.
+        These keys should map to the provided segmentations mask via ``labels_source`` or labels_layer. # TODO: currently ignored by vitessce
+    labels_key_display_name
+        Display label for ``labels_key`` in the Vitessce UI.  # TODO: currently ignored by vitessce
+    cluster_key
+        Optional key under ``obs`` used for categorical cell-set annotations,
+        e.g. ``"kronos"`` -> ``"obs/kronos"``.
+        Set to ``None`` to disable cluster/cell-set views and color encoding.
+    cluster_key_display_name
+        Display label for the cluster annotation in the Vitessce UI.
+    embedding_key
+        Optional key under ``obsm`` used for embedding coordinates,
+        e.g. ``"X_umap"`` -> ``"obsm/X_umap"``.
+        Set to ``None`` to disable the UMAP scatterplot view.
+    embedding_display_name
+        Display label for the embedding in the Vitessce UI and scatterplot mapping.
+    base_dir
+        Optional base directory for relative local paths in the config.
+        Ignored when ``img_source`` is a remote URL.
+        Ignored when ``sdata`` is provided.
+    name
+        Dataset name shown in Vitessce.
+    description
+        Configuration description.
+    schema_version
+        Vitessce schema version.
+    center
+        Initial spatial target as ``(x, y)`` camera center coordinates.
+        Use ``None`` to keep Vitessce defaults.
+    zoom
+        Initial spatial zoom level. Use ``None`` to keep Vitessce defaults.
+    channels
+        Initial channels rendered by spatialBeta.
+        Entries can be integer channel indices or channel names.
+        If more than 6 channels are provided, only the first 6 are used.
+        If ``None``, only channel at index 0 is shown.
+        Channel colors are assigned from an internal palette in the order
+        of this list (position-based, not value-based).
+    palette
+        Optional list of channel colors in hex format (``"#RRGGBB"``) used
+        by position for selected channels.
+    layer_opacity
+        Opacity of the image layer in ``[0, 1]``.
+    microns_per_pixel_image
+        Convenience option to add a file-level scale transform on ``(y, x)``.
+        A scalar applies isotropically.
+        Values are multiplicative scale factors (for absolute override, use
+        ``desired_pixel_size / source_pixel_size``).
+        This transform is composed *after* OME-NGFF metadata transforms.
+    coordinate_transformations_image
+        Raw file-level OME-NGFF coordinate transformations passed to
+        ``ImageOmeZarrWrapper``.
+        Mutually exclusive with ``microns_per_pixel``.
+    microns_per_pixel_mask
+        Convenience option to add a file-level scale transform on ``(y, x)``.
+        A scalar applies isotropically.
+        Values are multiplicative scale factors (for absolute override, use
+        ``desired_pixel_size / source_pixel_size``).
+        This transform is composed *after* OME-NGFF metadata transforms.
+    coordinate_transformations_mask
+        Raw file-level OME-NGFF coordinate transformations passed to
+        ``ImageOmeZarrWrapper``.
+        Mutually exclusive with ``microns_per_pixel``.
+    to_coordinate_system
+        Coordinate-system key used only when ``sdata`` is provided and both
+        ``microns_per_pixel`` and ``coordinate_transformations`` are ``None``.
+        In that case, the transform is read from ``sdata.images[img_layer]``,
+        converted to an affine matrix on ``("c", "y", "x")``, and then mapped
+        to OME-NGFF ``coordinateTransformations``.
+        Typically this is the micron coordinate system.
+        Ignored otherwise.
+
+    Returns
+    -------
+    VitessceConfig
+        A configured Vitessce configuration object with image-only views, and
+        optional segmentation/feature/obs-set/embedding/heatmap views depending
+        on the selected AnnData visualization options.
+
+    Raises
+    ------
+    ValueError
+        If ``cluster_key`` is provided as an empty string.
+        If ``cluster_key_display_name`` is empty when ``cluster_key`` is provided.
+        If ``embedding_key`` is provided as an empty string.
+        If ``embedding_display_name`` is empty when ``embedding_key`` is provided.
+        If AnnData-based visualization is requested and ``labels_key`` is empty.
+        If AnnData-based visualization is requested and ``labels_key_display_name`` is empty.
+        If ``center`` is provided but is not a 2-item tuple.
+        If ``sdata`` is provided but ``img_layer`` is missing.
+        If neither ``img_source`` nor ``sdata`` is provided.
+        If ``sdata.path`` is ``None``.
+        If AnnData-based visualization is requested but ``table_layer``/``adata_source``
+        is missing.
+        If AnnData-based visualization is requested without
+        ``labels_source``/``labels_layer``.
+    """
+    if cluster_key is not None and not cluster_key:
+        raise ValueError("cluster_key must be a non-empty string when provided.")
+    if cluster_key is not None and not cluster_key_display_name:
+        raise ValueError(
+            "cluster_key_display_name must be non-empty when cluster_key is provided."
+        )
+    if embedding_key is not None and not embedding_key:
+        raise ValueError("embedding_key must be a non-empty string when provided.")
+    if embedding_key is not None and not embedding_display_name:
+        raise ValueError(
+            "embedding_display_name must be non-empty when embedding_key is provided."
+        )
+    has_feature_matrix = visualize_feature_matrix
+    has_heatmap = visualize_heatmap
+    has_matrix_data = has_feature_matrix or has_heatmap
+    has_clusters = cluster_key is not None
+    has_embedding = embedding_key is not None
+    needs_adata = has_matrix_data or has_clusters or has_embedding
+    if img_layer is None:
+        raise ValueError("img_layer is required when sdata is provided.")
+    if needs_adata and table_layer is None:
+        raise ValueError(
+            "table_layer is required when sdata is provided and "
+            "visualize_feature_matrix=True or visualize_heatmap=True or "
+            "cluster_key/embedding_key is provided."
+        )
+    sdata_path = Path(sdata_path)
+
+    if not needs_adata and table_layer is not None:
+        logger.warning(
+            "table_layer was provided, but visualize_feature_matrix=False, "
+            "visualize_heatmap=False and cluster_key/embedding_key are None; "
+            "table layer is ignored."
+        )
+    _, is_sdata_remote = _normalize_path_or_url(sdata_path, "sdata_path")
+
+    if needs_adata and table_layer is None:
+        raise ValueError(
+            "table_layer is required when visualize_feature_matrix=True, "
+            "visualize_heatmap=True or cluster_key/embedding_key is provided."
+        )
+    if needs_adata and labels_layer is None:
+        raise ValueError(
+            "labels_layer is required when visualize_feature_matrix=True, "
+            "visualize_heatmap=True or cluster_key/embedding_key is provided."
+        )
+
+    if center is not None and len(center) != 2:
+        raise ValueError("center must be a tuple of two floats: (x, y).")
+    if zoom is not None and center is None:
+        logger.warning(
+            "zoom was provided without center. Vitessce ignores zoom unless "
+            "center is also set."
+        )
+    if center is not None and zoom is None:
+        logger.warning(
+            "center was provided without zoom. Vitessce ignores center unless "
+            "zoom is also set."
+        )
+    if not 0.0 <= layer_opacity <= 1.0:
+        raise ValueError("layer_opacity must be between 0.0 and 1.0.")
+
+    vc = VitessceConfig(
+        schema_version=schema_version,
+        description=description,
+        # base_dir only applies to local *_path entries.
+        base_dir=(
+            None
+            if is_sdata_remote
+            else (str(base_dir) if base_dir is not None else None)
+        ),
+    )
+
+    # SpatialDataWrapper yields one file definition, so image and labels
+    # layers should reference the same fileUid.
+    file_uuid = f"sdata_macsima_{uuid.uuid4()}"
+    labels_file_uuid: str | None = file_uuid if labels_layer is not None else None
+
+    file_coordination_values: dict[str, object] = {
+        "obsType": "cell",
+        "fileUid": file_uuid,
+    }
+    if has_matrix_data:
+        file_coordination_values.update(
+            {"featureType": "marker", "featureValueType": "intensity"}
+        )
+
+    wrapper = SpatialDataWrapper(
+        sdata_path=sdata_path,
+        table_path=f"tables/{table_layer}" if table_layer is not None else None,
+        image_path=f"images/{img_layer}" if img_layer is not None else None,
+        obs_segmentations_path=f"labels/{labels_layer}"
+        if labels_layer is not None
+        else None,
+        obs_feature_matrix_path=f"tables/{table_layer}/X" if has_matrix_data else None,
+        obs_set_paths=[f"tables/{table_layer}/obs/{cluster_key}"]
+        if cluster_key is not None
+        else None,
+        obs_set_names=[f"{cluster_key_display_name}"]
+        if cluster_key is not None
+        else None,
+        region=labels_layer,
+        obs_embedding_paths=[f"tables/{table_layer}/obsm/{embedding_key}"]
+        if embedding_key is not None
+        else None,
+        obs_embedding_names=[f"{embedding_display_name}"]
+        if embedding_key is not None
+        else None,
+        coordinate_system=to_coordinate_system,
+        coordination_values=file_coordination_values,
+    )
+    dataset = vc.add_dataset(name=name).add_object(wrapper)
+
+    spatial_zoom, spatial_target_x, spatial_target_y = vc.add_coordination(
+        ct.SPATIAL_ZOOM,
+        ct.SPATIAL_TARGET_X,
+        ct.SPATIAL_TARGET_Y,
+    )
+
+    if zoom is not None:
+        spatial_zoom.set_value(zoom)
+    if center is not None:
+        spatial_target_x.set_value(center[0])
+        spatial_target_y.set_value(center[1])
+
+    spatial_plot = vc.add_view(SPATIAL_VIEW, dataset=dataset)
+    layer_controller = vc.add_view(LAYER_CONTROLLER_VIEW, dataset=dataset)
+    feature_list = (
+        vc.add_view(cm.FEATURE_LIST, dataset=dataset) if has_feature_matrix else None
+    )
+    heatmap = vc.add_view(cm.HEATMAP, dataset=dataset) if has_heatmap else None
+    obs_sets = vc.add_view(cm.OBS_SETS, dataset=dataset) if has_clusters else None
+    umap = (
+        vc.add_view(cm.SCATTERPLOT, dataset=dataset, mapping=embedding_display_name)
+        if has_embedding
+        else None
+    )
+
+    spatial_plot.use_coordination(spatial_zoom, spatial_target_x, spatial_target_y)
+
+    obs_color = None
+    if has_matrix_data and has_clusters:
+        (
+            obs_type,
+            feat_type,
+            feat_val_type,
+            obs_color,
+            feat_sel,
+            obs_set_sel,
+        ) = vc.add_coordination(  # coordinate them all, because we want to switch between feature matrix and cluster key.
+            ct.OBS_TYPE,
+            ct.FEATURE_TYPE,
+            ct.FEATURE_VALUE_TYPE,
+            ct.OBS_COLOR_ENCODING,
+            ct.FEATURE_SELECTION,
+            ct.OBS_SET_SELECTION,
+        )
+        obs_type.set_value("cell")
+        feat_type.set_value("marker")
+        feat_val_type.set_value("intensity")
+        obs_color.set_value(
+            "cellSetSelection"
+        )  # we default to cluster key coloring if we can choose between features and clusters.
+        feat_sel.set_value(None)
+        obs_set_sel.set_value(None)
+
+        spatial_plot.use_coordination(
+            obs_type, feat_type, feat_val_type, obs_color, feat_sel, obs_set_sel
+        )
+        if feature_list is not None:
+            feature_list.use_coordination(
+                obs_type, obs_color, feat_sel, feat_type, feat_val_type
+            )
+        if obs_sets is not None:
+            obs_sets.use_coordination(obs_type, obs_set_sel, obs_color)
+        if heatmap is not None:
+            heatmap.use_coordination(
+                obs_type, feat_type, feat_val_type, feat_sel, obs_set_sel
+            )
+        if umap is not None:
+            umap.use_coordination(
+                obs_type, feat_type, feat_val_type, obs_color, feat_sel, obs_set_sel
+            )
+    elif has_matrix_data:
+        obs_type, feat_type, feat_val_type, obs_color, feat_sel = vc.add_coordination(
+            ct.OBS_TYPE,
+            ct.FEATURE_TYPE,
+            ct.FEATURE_VALUE_TYPE,
+            ct.OBS_COLOR_ENCODING,
+            ct.FEATURE_SELECTION,
+        )
+        obs_type.set_value("cell")
+        feat_type.set_value("marker")
+        feat_val_type.set_value("intensity")
+        obs_color.set_value("geneSelection")
+        feat_sel.set_value(None)
+
+        spatial_plot.use_coordination(
+            obs_type, feat_type, feat_val_type, obs_color, feat_sel
+        )
+        if feature_list is not None:
+            feature_list.use_coordination(
+                obs_type, obs_color, feat_sel, feat_type, feat_val_type
+            )
+        if heatmap is not None:
+            heatmap.use_coordination(obs_type, feat_type, feat_val_type, feat_sel)
+        if umap is not None:
+            umap.use_coordination(
+                obs_type, feat_type, feat_val_type, obs_color, feat_sel
+            )
+    elif has_clusters:
+        obs_type, obs_color, obs_set_sel = vc.add_coordination(
+            ct.OBS_TYPE,
+            ct.OBS_COLOR_ENCODING,
+            ct.OBS_SET_SELECTION,
+        )
+        obs_type.set_value("cell")
+        obs_color.set_value("cellSetSelection")
+        obs_set_sel.set_value(None)
+
+        spatial_plot.use_coordination(obs_type, obs_color, obs_set_sel)
+        if obs_sets is not None:
+            obs_sets.use_coordination(obs_type, obs_set_sel, obs_color)
+        if umap is not None:
+            umap.use_coordination(obs_type, obs_color, obs_set_sel)
+    elif has_embedding:
+        (obs_type,) = vc.add_coordination(ct.OBS_TYPE)
+        obs_type.set_value("cell")
+        spatial_plot.use_coordination(obs_type)
+        if umap is not None:
+            umap.use_coordination(obs_type)
+
+    image_layer = build_image_layer_config(
+        file_uid=file_uuid,
+        channels=channels,
+        palette=palette,
+        visualize_as_rgb=False,
+        layer_opacity=layer_opacity,
+    )
+
+    vc.link_views_by_dict(
+        [spatial_plot, layer_controller],
+        {"imageLayer": CL([image_layer])},
+        scope_prefix=get_initial_coordination_scope_prefix("A", "image"),
+    )
+
+    if labels_file_uuid is not None:
+        segmentation_channel: dict[str, object] = {
+            "spatialTargetC": 0,
+            "spatialChannelOpacity": 0.75,
+        }
+        if obs_color is not None:
+            segmentation_channel["obsColorEncoding"] = obs_color
+        if has_matrix_data:
+            segmentation_channel["featureValueColormapRange"] = [0, 1]
+        vc.link_views_by_dict(
+            [spatial_plot, layer_controller],
+            {
+                "segmentationLayer": CL(
+                    [
+                        {
+                            "fileUid": labels_file_uuid,
+                            "segmentationChannel": CL([segmentation_channel]),
+                        }
+                    ]
+                )
+            },
+            scope_prefix=get_initial_coordination_scope_prefix("A", "obsSegmentations"),
+        )
+
+    """
+    # lasso broken on segmentationlayer.
+    if has_clusters or has_feature_matrix:
+        vc.link_views_by_dict(
+            [spatial_plot, layer_controller],
+            {
+                "spotLayer": CL(
+                    [
+                        {
+                            "obsType": obs_type,
+                            "spatialLayerVisible": True,
+                            "spatialLayerOpacity": 0.2,
+                            "spatialSpotRadius": 1.5,
+                            "spatialSpotFilled": True,
+                            "spatialSpotStrokeWidth": 0.0,
+                            "spatialLayerColor": [255, 255, 255],
+                            "tooltipsVisible": True,
+                            "tooltipCrosshairsVisible": True,
+                        }
+                    ]
+                ),
+            },
+            scope_prefix=get_initial_coordination_scope_prefix("A", "obsSpots"),
+        )
+    """
+
+    layer_controller.set_props(disableChannelsIfRgbDetected=False)
+    # Layout strategy:
+    # - No feature list: 2 columns (spatial + right stack).
+    # - Feature list present: 3 columns (spatial + middle stack + right stack).
+    if feature_list is None:
+        # Order in 2-column mode:
+        # layer_controller -> heatmap -> umap -> obs_sets
+        right_views = [layer_controller]
+        if heatmap is not None:
+            right_views.append(heatmap)
+        if umap is not None:
+            right_views.append(umap)
+        if obs_sets is not None:
+            right_views.append(obs_sets)
+
+        if len(right_views) == 1:
+            right_column = right_views[0]
+        elif len(right_views) == 2:
+            right_column = vconcat(*right_views, split=[4, 8])
+        elif len(right_views) == 3:
+            # Keep final panel compact (typically obs_sets).
+            right_column = vconcat(*right_views, split=[3, 6, 3])
+        else:
+            # layer_controller, heatmap, umap, obs_sets (obs_sets compact).
+            right_column = vconcat(*right_views, split=[2, 4, 4, 2])
+
+        vc.layout(hconcat(spatial_plot, right_column, split=[8, 4]))
+    else:
+        middle_views = [layer_controller]
+        if heatmap is not None:
+            middle_views.append(heatmap)
+        if umap is not None:
+            middle_views.append(umap)
+
+        if len(middle_views) == 1:
+            middle_column = middle_views[0]
+        elif len(middle_views) == 2:
+            middle_column = vconcat(*middle_views, split=[4, 8])
+        else:
+            middle_column = vconcat(*middle_views, split=[3, 5, 4])
+
+        right_views = [feature_list]
+        if obs_sets is not None:
+            right_views.append(obs_sets)
+        if len(right_views) == 1:
+            right_column = right_views[0]
+        else:
+            # Keep obs_sets compact in 3-column mode too.
+            right_column = vconcat(*right_views, split=[8, 4])
+
+        vc.layout(hconcat(spatial_plot, middle_column, right_column, split=[6, 3, 3]))
+
+    return vc
 
 
 def proteomics(
