@@ -3,7 +3,6 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 from loguru import logger
-from spatialdata import SpatialData
 from vitessce import (
     AnnDataWrapper,
     ImageOmeZarrWrapper,
@@ -30,7 +29,6 @@ from harpy_vitessce.vitessce_config._constants import (
 )
 from harpy_vitessce.vitessce_config._image import (
     _resolve_image_coordinate_transformations,
-    _spatialdata_transformation_to_ngff,
     build_image_layer_config,
 )
 from harpy_vitessce.vitessce_config._utils import _normalize_path_or_url
@@ -544,13 +542,7 @@ def proteomics_sdata(
 
 
 def proteomics(
-    sdata: SpatialData | None = None,
-    img_layer: str | None = None,
-    labels_layer: str | None = None,
-    table_layer: str | None = None,
-    img_source: str
-    | Path
-    | None = None,  # local path relative to base_dir or remote URL
+    img_source,  # local path relative to base_dir or remote URL
     labels_source: str | Path | None = None,
     adata_source: str | Path | None = None,
     base_dir: str | Path | None = None,
@@ -566,7 +558,6 @@ def proteomics(
     coordinate_transformations_image: Sequence[Mapping[str, object]] | None = None,
     microns_per_pixel_mask: float | tuple[float, float] | None = None,
     coordinate_transformations_mask: Sequence[Mapping[str, object]] | None = None,
-    to_coordinate_system: str = "global",
     visualize_feature_matrix: bool = False,
     visualize_heatmap: bool = False,
     # spatial_key: str = "spatial", # not necessary for this type of visualizations.
@@ -582,23 +573,6 @@ def proteomics(
 
     Parameters
     ----------
-    sdata
-        ``SpatialData`` object. When provided, image source is resolved
-        as ``sdata.path / "images" / img_layer``.
-    img_layer
-        Image layer name under ``images`` in ``sdata``. Required when ``sdata``
-        is provided.
-        Ignored when ``sdata`` is not provided.
-    labels_layer
-        Labels layer name under ``labels`` in ``sdata``.
-        When provided, segmentation boundaries can be rendered in spatial view.
-        Ignored when ``sdata`` is not provided.
-    table_layer
-        Table layer name under ``tables`` in ``sdata``. When provided together
-        with ``labels_layer``, enables feature-matrix and/or cluster coloring
-        and/or embedding visualization (depending on ``visualize_feature_matrix``,
-        ``visualize_heatmap``, ``cluster_key`` and ``embedding_key``).
-        Ignored when ``sdata`` is not provided.
     img_source
         Path/URL to an OME-Zarr image. Local paths are relative to ``base_dir``
         when provided.
@@ -742,74 +716,6 @@ def proteomics(
     has_clusters = cluster_key is not None
     has_embedding = embedding_key is not None
     needs_adata = has_matrix_data or has_clusters or has_embedding
-    """
-    if needs_adata and not labels_key:
-        raise ValueError(
-            "labels_key must be a non-empty string when AnnData-based visualization is requested."
-        )
-    if needs_adata and not labels_key_display_name:
-        raise ValueError(
-            "labels_key_display_name must be non-empty when AnnData-based visualization is requested."
-        )
-    """
-
-    if sdata is not None:
-        if img_layer is None:
-            raise ValueError("img_layer is required when sdata is provided.")
-        if needs_adata and table_layer is None:
-            raise ValueError(
-                "table_layer is required when sdata is provided and "
-                "visualize_feature_matrix=True or visualize_heatmap=True or "
-                "cluster_key/embedding_key is provided."
-            )
-        if img_source is not None:
-            logger.warning(
-                "Both sdata and img_source were provided; img_source is ignored and "
-                "image source is resolved from sdata.path/images/{}.",
-                img_layer,
-            )
-        if labels_source is not None:
-            logger.warning(
-                "Both sdata and labels_source were provided; labels_source is ignored and "
-                "labels source is resolved from sdata.path/labels/{}.",
-                labels_layer,
-            )
-        if adata_source is not None:
-            logger.warning(
-                "Both sdata and adata_source were provided; adata_source is ignored and "
-                "table source is resolved from sdata.path/tables/{}.",
-                table_layer,
-            )
-        if base_dir is not None:
-            logger.warning(
-                "Both sdata and base_dir were provided; base_dir is ignored because "
-                "image source is resolved from sdata.path."
-            )
-        if sdata.path is None:
-            raise ValueError(
-                "sdata.path is None. Provide a backed SpatialData object or pass img_source directly."
-            )
-        img_source = Path(sdata.path) / "images" / img_layer
-        labels_source = (
-            Path(sdata.path) / "labels" / labels_layer
-            if labels_layer is not None
-            else None
-        )
-        if table_layer is not None:
-            if needs_adata:
-                adata_source = Path(sdata.path) / "tables" / table_layer
-            else:
-                logger.warning(
-                    "table_layer was provided, but both visualize_feature_matrix=False "
-                    "and visualize_heatmap=False and cluster_key/embedding_key are None; "
-                    "table data is ignored."
-                )
-                adata_source = None
-        else:
-            adata_source = None
-        base_dir = None
-    elif img_source is None:
-        raise ValueError("Either img_source or sdata must be provided.")
 
     if not needs_adata and adata_source is not None:
         logger.warning(
@@ -844,36 +750,6 @@ def proteomics(
             "visualize_heatmap=True or cluster_key/embedding_key is provided."
         )
 
-    # resolve the transformation from the spatialdata object, if necessary
-    if sdata is not None:
-        if coordinate_transformations_image is None and microns_per_pixel_image is None:
-            logger.info(
-                "Both coordinate_transformations_image and microns_per_pixel_image is None. "
-                "Fetching coordinate transformation from the SpatialData object."
-            )
-            coordinate_transformations_image = _spatialdata_transformation_to_ngff(
-                sdata,
-                layer=img_layer,
-                to_coordinate_system=to_coordinate_system,
-                axes=("c", "y", "x"),
-            )
-
-        if labels_layer is not None:
-            if (
-                coordinate_transformations_mask is None
-                and microns_per_pixel_mask is None
-            ):
-                logger.info(
-                    "Both coordinate_transformations_mask and microns_per_pixel_mask is None. "
-                    "Fetching coordinate transformation from the SpatialData object."
-                )
-                coordinate_transformations_mask = _spatialdata_transformation_to_ngff(
-                    sdata,
-                    layer=labels_layer,
-                    to_coordinate_system=to_coordinate_system,
-                    axes=("y", "x"),
-                )
-
     coordinate_transformations_image = _resolve_image_coordinate_transformations(
         coordinate_transformations=coordinate_transformations_image,
         microns_per_pixel=microns_per_pixel_image,
@@ -884,7 +760,6 @@ def proteomics(
         microns_per_pixel=microns_per_pixel_mask,
         axes=("y", "x"),
     )
-    # TODO -> check that same transformation defined on labels layer if sdata is provided and fetched from labels layer. If not raise ValueError.
 
     if center is not None and len(center) != 2:
         raise ValueError("center must be a tuple of two floats: (x, y).")
@@ -961,7 +836,7 @@ def proteomics(
         assert adata_source is not None
         adata_wrapper_kwargs: dict[str, object] = {
             # "obs_locations_path": f"obsm/{spatial_key}", # Not needed for this case.
-            # "obs_labels_paths": [f"obs/{labels_key}"],
+            # "obs_labels_paths": [f"obs/{labels_key}"], # ignored by vitessce
             # "obs_labels_names": [labels_key_display_name],
             "obs_feature_matrix_path": "X" if has_matrix_data else None,
             "coordination_values": {"obsType": "cell"},
