@@ -59,7 +59,7 @@ def macsima(  # maybe we should rename this to proteomics
     to_coordinate_system: str = "global",
     visualize_feature_matrix: bool = False,
     visualize_heatmap: bool = False,
-    spatial_key: str = "spatial",
+    # spatial_key: str = "spatial", # not necessary for this type of visualizations.
     # labels_key: str = "cell_ID",
     # labels_key_display_name: str = "cell ID",
     cluster_key: str | None = None,
@@ -112,9 +112,6 @@ def macsima(  # maybe we should rename this to proteomics
     visualize_heatmap
         If ``True``, expose a heatmap view driven by the AnnData ``X`` matrix.
         This is independent from ``visualize_feature_matrix``.
-    spatial_key
-        Key under ``obsm`` used for cell coordinates,
-        e.g. ``"spatial"`` -> ``"obsm/spatial"``.
     labels_key
         Key under ``obs`` used for cell labels,
         e.g. ``"cell_ID"`` -> ``"obs/cell_ID"``.
@@ -193,7 +190,6 @@ def macsima(  # maybe we should rename this to proteomics
         If ``cluster_key_display_name`` is empty when ``cluster_key`` is provided.
         If ``embedding_key`` is provided as an empty string.
         If ``embedding_display_name`` is empty when ``embedding_key`` is provided.
-        If ``spatial_key`` is empty.
         If AnnData-based visualization is requested and ``labels_key`` is empty.
         If AnnData-based visualization is requested and ``labels_key_display_name`` is empty.
         If ``center`` is provided but is not a 2-item tuple.
@@ -217,8 +213,8 @@ def macsima(  # maybe we should rename this to proteomics
         raise ValueError(
             "embedding_display_name must be non-empty when embedding_key is provided."
         )
-    if not spatial_key:
-        raise ValueError("spatial_key must be a non-empty string.")
+    # if not spatial_key:
+    #    raise ValueError("spatial_key must be a non-empty string.")
 
     has_feature_matrix = visualize_feature_matrix
     has_heatmap = visualize_heatmap
@@ -412,7 +408,7 @@ def macsima(  # maybe we should rename this to proteomics
     if needs_adata:
         assert adata_source is not None
         adata_wrapper_kwargs: dict[str, object] = {
-            "obs_locations_path": f"obsm/{spatial_key}",
+            # "obs_locations_path": f"obsm/{spatial_key}", # Not needed for this case.
             # "obs_labels_paths": [f"obs/{labels_key}"],
             # "obs_labels_names": [labels_key_display_name],
             "obs_feature_matrix_path": "X" if has_matrix_data else None,
