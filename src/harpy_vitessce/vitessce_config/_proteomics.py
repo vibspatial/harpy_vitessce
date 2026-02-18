@@ -35,7 +35,7 @@ from harpy_vitessce.vitessce_config._image import (
 from harpy_vitessce.vitessce_config._utils import _normalize_path_or_url
 
 
-def macsima(  # maybe we should rename this to proteomics
+def proteomics(
     sdata: SpatialData | None = None,
     img_layer: str | None = None,
     labels_layer: str | None = None,
@@ -54,8 +54,10 @@ def macsima(  # maybe we should rename this to proteomics
     channels: Sequence[int | str] | None = None,
     palette: Sequence[str] | None = None,
     layer_opacity: float = 1.0,
-    microns_per_pixel: float | tuple[float, float] | None = None,
-    coordinate_transformations: Sequence[Mapping[str, object]] | None = None,
+    microns_per_pixel_image: float | tuple[float, float] | None = None,
+    coordinate_transformations_image: Sequence[Mapping[str, object]] | None = None,
+    microns_per_pixel_mask: float | tuple[float, float] | None = None,
+    coordinate_transformations_mask: Sequence[Mapping[str, object]] | None = None,
     to_coordinate_system: str = "global",
     visualize_feature_matrix: bool = False,
     visualize_heatmap: bool = False,
@@ -157,13 +159,23 @@ def macsima(  # maybe we should rename this to proteomics
         by position for selected channels.
     layer_opacity
         Opacity of the image layer in ``[0, 1]``.
-    microns_per_pixel
+    microns_per_pixel_image
         Convenience option to add a file-level scale transform on ``(y, x)``.
         A scalar applies isotropically.
         Values are multiplicative scale factors (for absolute override, use
         ``desired_pixel_size / source_pixel_size``).
         This transform is composed *after* OME-NGFF metadata transforms.
-    coordinate_transformations
+    coordinate_transformations_image
+        Raw file-level OME-NGFF coordinate transformations passed to
+        ``ImageOmeZarrWrapper``.
+        Mutually exclusive with ``microns_per_pixel``.
+    microns_per_pixel_mask
+        Convenience option to add a file-level scale transform on ``(y, x)``.
+        A scalar applies isotropically.
+        Values are multiplicative scale factors (for absolute override, use
+        ``desired_pixel_size / source_pixel_size``).
+        This transform is composed *after* OME-NGFF metadata transforms.
+    coordinate_transformations_mask
         Raw file-level OME-NGFF coordinate transformations passed to
         ``ImageOmeZarrWrapper``.
         Mutually exclusive with ``microns_per_pixel``.
@@ -324,22 +336,45 @@ def macsima(  # maybe we should rename this to proteomics
             "visualize_heatmap=True or cluster_key/embedding_key is provided."
         )
 
-    # resolve the transformation:
+    # resolve the transformation from the spatialdata object, if necessary
     if sdata is not None:
-        if coordinate_transformations is None and microns_per_pixel is None:
+        if coordinate_transformations_image is None and microns_per_pixel_image is None:
             logger.info(
-                "Both coordinate_transformations and microns_per_pixel is None. "
+                "Both coordinate_transformations_image and microns_per_pixel_image is None. "
                 "Fetching coordinate transformation from the SpatialData object."
             )
-            coordinate_transformations = _spatialdata_transformation_to_ngff(
+            coordinate_transformations_image = _spatialdata_transformation_to_ngff(
                 sdata,
                 layer=img_layer,
                 to_coordinate_system=to_coordinate_system,
+                axes=("c", "y", "x"),
             )
 
-    image_coordinate_transformations = _resolve_image_coordinate_transformations(
-        coordinate_transformations=coordinate_transformations,
-        microns_per_pixel=microns_per_pixel,
+        if labels_layer is not None:
+            if (
+                coordinate_transformations_mask is None
+                and microns_per_pixel_mask is None
+            ):
+                logger.info(
+                    "Both coordinate_transformations_mask and microns_per_pixel_mask is None. "
+                    "Fetching coordinate transformation from the SpatialData object."
+                )
+                coordinate_transformations_mask = _spatialdata_transformation_to_ngff(
+                    sdata,
+                    layer=labels_layer,
+                    to_coordinate_system=to_coordinate_system,
+                    axes=("y", "x"),
+                )
+
+    coordinate_transformations_image = _resolve_image_coordinate_transformations(
+        coordinate_transformations=coordinate_transformations_image,
+        microns_per_pixel=microns_per_pixel_image,
+        axes=("c", "y", "x"),
+    )
+    coordinate_transformations_mask = _resolve_image_coordinate_transformations(
+        coordinate_transformations=coordinate_transformations_mask,
+        microns_per_pixel=microns_per_pixel_mask,
+        axes=("y", "x"),
     )
     # TODO -> check that same transformation defined on labels layer if sdata is provided and fetched from labels layer. If not raise ValueError.
 
@@ -390,9 +425,9 @@ def macsima(  # maybe we should rename this to proteomics
     img_wrapper_kwargs: dict[str, object] = {
         "coordination_values": {"fileUid": file_uuid},
     }
-    if image_coordinate_transformations is not None:
+    if coordinate_transformations_image is not None:
         img_wrapper_kwargs["coordinate_transformations"] = (
-            image_coordinate_transformations
+            coordinate_transformations_image
         )
     img_wrapper_kwargs["img_url" if is_img_remote else "img_path"] = img_source
     dataset = vc.add_dataset(name=name).add_object(
@@ -405,9 +440,9 @@ def macsima(  # maybe we should rename this to proteomics
         seg_wrapper_kwargs: dict[str, object] = {
             "coordination_values": {"fileUid": labels_file_uuid},
         }
-        if image_coordinate_transformations is not None:
+        if coordinate_transformations_mask is not None:
             seg_wrapper_kwargs["coordinate_transformations"] = (
-                image_coordinate_transformations
+                coordinate_transformations_mask
             )
         seg_wrapper_kwargs["img_url" if is_labels_remote else "img_path"] = (
             labels_source
