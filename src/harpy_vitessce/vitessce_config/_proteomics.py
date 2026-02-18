@@ -60,8 +60,8 @@ def macsima(  # maybe we should rename this to proteomics
     visualize_feature_matrix: bool = False,
     visualize_heatmap: bool = False,
     spatial_key: str = "spatial",
-    labels_key: str = "cell_ID",
-    labels_key_display_name: str = "cell ID",
+    # labels_key: str = "cell_ID",
+    # labels_key_display_name: str = "cell ID",
     cluster_key: str | None = None,
     cluster_key_display_name: str = "Clusters",
     embedding_key: str | None = None,
@@ -226,6 +226,7 @@ def macsima(  # maybe we should rename this to proteomics
     has_clusters = cluster_key is not None
     has_embedding = embedding_key is not None
     needs_adata = has_matrix_data or has_clusters or has_embedding
+    """
     if needs_adata and not labels_key:
         raise ValueError(
             "labels_key must be a non-empty string when AnnData-based visualization is requested."
@@ -234,6 +235,7 @@ def macsima(  # maybe we should rename this to proteomics
         raise ValueError(
             "labels_key_display_name must be non-empty when AnnData-based visualization is requested."
         )
+    """
 
     if sdata is not None:
         if img_layer is None:
@@ -411,8 +413,8 @@ def macsima(  # maybe we should rename this to proteomics
         assert adata_source is not None
         adata_wrapper_kwargs: dict[str, object] = {
             "obs_locations_path": f"obsm/{spatial_key}",
-            "obs_labels_paths": [f"obs/{labels_key}"],
-            "obs_labels_names": [labels_key_display_name],
+            # "obs_labels_paths": [f"obs/{labels_key}"],
+            # "obs_labels_names": [labels_key_display_name],
             "obs_feature_matrix_path": "X" if has_matrix_data else None,
             "coordination_values": {"obsType": "cell"},
         }
