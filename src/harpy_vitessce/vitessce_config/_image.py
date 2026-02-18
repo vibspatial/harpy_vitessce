@@ -250,6 +250,9 @@ def _affine_matrix_to_ngff_coordinate_transformations(
     """
     Convert an affine transform to OME-NGFF coordinateTransformations.
 
+    Currently vitessce only supports scale and translation.
+    Via spatialdata wrapper, it is possible to specify more than scale and translation.
+
     Accepted shape:
     - (N+1, N+1): homogeneous matrix for (*axes, 1)
 
@@ -337,7 +340,17 @@ def _spatialdata_transformation_to_ngff(
     transformation = transformation.to_affine_matrix(
         input_axes=axis_names, output_axes=axis_names
     )
-    # convert to ngff coordinate transformation
+
+    """
+    # this fails config validation, see https://github.com/vitessce/vitessce/blob/5bcf8d7351e14b29f477f228e8f472bc35ffade0/packages/schemas/src/file-def-options.ts#L153
+    affine_ct = {
+        "type": "affine",
+        "matrix": np.asarray(transformation, dtype=float).tolist(),
+    }
+    return [affine_ct]
+    """
+
+    # convert to ngff coordinate transformation, and limit to translation and scale
     coordinate_transformations = _affine_matrix_to_ngff_coordinate_transformations(
         affine=transformation,
         axes=axis_names,
