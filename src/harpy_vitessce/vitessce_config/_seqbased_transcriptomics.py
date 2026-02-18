@@ -120,6 +120,16 @@ def single_channel_image(
         )
     if center is not None and len(center) != 2:
         raise ValueError("center must be a tuple of two floats: (x, y).")
+    if zoom is not None and center is None:
+        logger.warning(
+            "zoom was provided without center. Vitessce may ignore zoom unless "
+            "center is also set."
+        )
+    if center is not None and zoom is None:
+        logger.warning(
+            "center was provided without zoom. Vitessce may ignore center unless "
+            "zoom is also set."
+        )
 
     vc = VitessceConfig(
         schema_version=schema_version,
@@ -465,6 +475,16 @@ def visium_hd(
         raise ValueError("emb_radius must be > 0 when emb_radius_mode='manual'.")
     if center is not None and len(center) != 2:
         raise ValueError("center must be a tuple of two floats: (x, y).")
+    if zoom is not None and center is None:
+        logger.warning(
+            "zoom was provided without center. Vitessce ignores zoom unless "
+            "center is also set."
+        )
+    if center is not None and zoom is None:
+        logger.warning(
+            "center was provided without zoom. Vitessce ignores center unless "
+            "zoom is also set."
+        )
 
     vc = VitessceConfig(
         schema_version=schema_version,

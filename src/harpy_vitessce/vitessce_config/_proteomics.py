@@ -345,6 +345,16 @@ def macsima(  # maybe we should rename this to proteomics
 
     if center is not None and len(center) != 2:
         raise ValueError("center must be a tuple of two floats: (x, y).")
+    if zoom is not None and center is None:
+        logger.warning(
+            "zoom was provided without center. Vitessce ignores zoom unless "
+            "center is also set."
+        )
+    if center is not None and zoom is None:
+        logger.warning(
+            "center was provided without zoom. Vitessce ignores center unless "
+            "zoom is also set."
+        )
     if not 0.0 <= layer_opacity <= 1.0:
         raise ValueError("layer_opacity must be between 0.0 and 1.0.")
 
@@ -364,18 +374,17 @@ def macsima(  # maybe we should rename this to proteomics
         ),
     )
 
-    spatial_coordination_scopes = []
+    spatial_zoom, spatial_target_x, spatial_target_y = vc.add_coordination(
+        ct.SPATIAL_ZOOM,
+        ct.SPATIAL_TARGET_X,
+        ct.SPATIAL_TARGET_Y,
+    )
+
     if zoom is not None:
-        (spatial_zoom,) = vc.add_coordination(ct.SPATIAL_ZOOM)
         spatial_zoom.set_value(zoom)
-        spatial_coordination_scopes.append(spatial_zoom)
     if center is not None:
-        spatial_target_x, spatial_target_y = vc.add_coordination(
-            ct.SPATIAL_TARGET_X, ct.SPATIAL_TARGET_Y
-        )
         spatial_target_x.set_value(center[0])
         spatial_target_y.set_value(center[1])
-        spatial_coordination_scopes.extend([spatial_target_x, spatial_target_y])
 
     file_uuid = f"img_macsima_{uuid.uuid4()}"  # can be set to any value
     img_wrapper_kwargs: dict[str, object] = {
@@ -444,8 +453,7 @@ def macsima(  # maybe we should rename this to proteomics
         else None
     )
 
-    if spatial_coordination_scopes:
-        spatial_plot.use_coordination(*spatial_coordination_scopes)
+    spatial_plot.use_coordination(spatial_zoom, spatial_target_x, spatial_target_y)
 
     obs_color = None
     if has_matrix_data and has_clusters:
