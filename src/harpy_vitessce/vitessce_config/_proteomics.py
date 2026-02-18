@@ -411,8 +411,8 @@ def macsima(  # maybe we should rename this to proteomics
         assert adata_source is not None
         adata_wrapper_kwargs: dict[str, object] = {
             "obs_locations_path": f"obsm/{spatial_key}",
-            "obs_labels_paths": f"obs/{labels_key}",
-            "obs_labels_names": labels_key_display_name,
+            "obs_labels_paths": [f"obs/{labels_key}"],
+            "obs_labels_names": [labels_key_display_name],
             "obs_feature_matrix_path": "X" if has_matrix_data else None,
             "coordination_values": {"obsType": "cell"},
         }
@@ -610,7 +610,7 @@ def macsima(  # maybe we should rename this to proteomics
     # - No feature list: 2 columns (spatial + right stack).
     # - Feature list present: 3 columns (spatial + middle stack + right stack).
     if feature_list is None:
-        # Requested order in 2-column mode:
+        # Order in 2-column mode:
         # layer_controller -> heatmap -> umap -> obs_sets
         right_views = [layer_controller]
         if heatmap is not None:
