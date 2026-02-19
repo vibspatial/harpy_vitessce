@@ -163,10 +163,35 @@ def build_image_layer_config(
     return image_layer
 
 
+def _resolve_axis_names(
+    axes: Sequence[str | Mapping[str, object]] | None,
+) -> list[str]:
+    if axes is None:
+        return ["c", "y", "x"]
+
+    axis_names: list[str] = []
+    for axis in axes:
+        if isinstance(axis, str):
+            axis_names.append(axis)
+            continue
+
+        name = axis.get("name") if isinstance(axis, Mapping) else None
+        if not isinstance(name, str):
+            raise ValueError(
+                "Each axis must be either a string name or a mapping with a string 'name' field."
+            )
+        axis_names.append(name)
+
+    if "y" not in axis_names or "x" not in axis_names:
+        raise ValueError("axes must include at least 'y' and 'x'.")
+    return axis_names
+
+
 def _resolve_image_coordinate_transformations(
     *,
     coordinate_transformations: Sequence[Mapping[str, object]] | None,
     microns_per_pixel: float | tuple[float, float] | None,
+    axes: Sequence[str | Mapping[str, object]] | None = ("c", "y", "x"),
 ) -> list[dict[str, object]] | None:
     """
     Resolve optional file-level OME-NGFF coordinate transformations.
@@ -201,46 +226,60 @@ def _resolve_image_coordinate_transformations(
     if mpp_y <= 0 or mpp_x <= 0:
         raise ValueError("microns_per_pixel values must be > 0.")
 
+    axis_names = _resolve_axis_names(axes)
+    scale = [
+        mpp_y if name == "y" else mpp_x if name == "x" else 1.0 for name in axis_names
+    ]
+
     logger.warning(
-        "Applying microns_per_pixel={} as additional file-level scale multiplier. "
+        "Applying microns_per_pixel={} as additional file-level scale multiplier for axes {}. "
         "This is composed after OME-NGFF metadata transforms.",
         (mpp_y, mpp_x),
+        axis_names,
     )
-    return [{"type": "scale", "scale": [1.0, mpp_y, mpp_x]}]
+    return [{"type": "scale", "scale": scale}]
 
 
 def _affine_matrix_to_ngff_coordinate_transformations(
     affine: Sequence[Sequence[float]] | np.ndarray,
     *,
+    axes: Sequence[str] = ("c", "y", "x"),
     atol: float = 1e-8,
     enforce_c_identity: bool = True,
 ) -> list[dict[str, Any]]:
     """
-    Convert an affine transform (c,y,x) to OME-NGFF coordinateTransformations.
+    Convert an affine transform to OME-NGFF coordinateTransformations.
 
-    Accepted shapes:
-    - (4, 4): homogeneous matrix for (c, y, x, 1)
-    - (3, 4): [linear | translation]
-    - (3, 3): linear only (translation assumed zero)
+    Currently vitessce only supports scale and translation.
+    Via spatialdata wrapper, it is possible to specify more than scale and translation.
 
-    Assumes column-vector convention: x' = A x + t.
-    For 4x4, translation is expected in the last column.
+    Accepted shape:
+    - (N+1, N+1): homogeneous matrix for (*axes, 1)
+
+    Assumes column-vector convention: x' = A x + t, with translation
+    in the last column and a homogeneous last row [0, ..., 0, 1].
     """
     A = np.asarray(affine, dtype=float)
+    axis_names = list(axes)
+    if len(axis_names) == 0:
+        raise ValueError("axes must contain at least one axis name.")
+    if len(set(axis_names)) != len(axis_names):
+        raise ValueError("axes must not contain duplicate names.")
+    n_axes = len(axis_names)
 
-    if A.shape == (4, 4):
-        if not np.allclose(A[3], [0.0, 0.0, 0.0, 1.0], atol=atol):
-            raise ValueError("For 4x4 input, last row must be [0, 0, 0, 1].")
-        linear = A[:3, :3]
-        translation = A[:3, 3]
-    elif A.shape == (3, 4):
-        linear = A[:, :3]
-        translation = A[:, 3]
-    elif A.shape == (3, 3):
-        linear = A
-        translation = np.zeros(3, dtype=float)
-    else:
-        raise ValueError("Affine must have shape (4,4), (3,4), or (3,3).")
+    expected_shape = (n_axes + 1, n_axes + 1)
+    if A.shape != expected_shape:
+        raise ValueError(
+            f"Affine must have shape {expected_shape} for axes {axis_names}."
+        )
+    expected_last_row = np.zeros(n_axes + 1, dtype=float)
+    expected_last_row[-1] = 1.0
+    if not np.allclose(A[n_axes], expected_last_row, atol=atol):
+        raise ValueError(
+            f"For {expected_shape} input, last row must be {expected_last_row.tolist()}."
+        )
+    linear = A[:n_axes, :n_axes]
+    translation = A[:n_axes, n_axes]
 
     if not np.all(np.isfinite(linear)) or not np.all(np.isfinite(translation)):
         raise ValueError("Affine contains non-finite values.")
@@ -252,31 +291,31 @@ def _affine_matrix_to_ngff_coordinate_transformations(
             "Not NGFF scale/translation-only: off-diagonal terms found (rotation/shear)."
         )
 
-    sc, sy, sx = np.diag(linear).astype(float)
-    tc, ty, tx = translation.astype(float)
+    scales = np.diag(linear).astype(float)
+    translations = translation.astype(float)
 
-    if (
-        np.isclose(sc, 0.0, atol=atol)
-        or np.isclose(sy, 0.0, atol=atol)
-        or np.isclose(sx, 0.0, atol=atol)
-    ):
+    if np.any(np.isclose(scales, 0.0, atol=atol)):
         raise ValueError("Scale contains zero, which is invalid.")
 
-    if enforce_c_identity:
-        if not np.isclose(sc, 1.0, atol=atol) or not np.isclose(tc, 0.0, atol=atol):
+    if enforce_c_identity and "c" in axis_names:
+        c_idx = axis_names.index("c")
+        if not np.isclose(scales[c_idx], 1.0, atol=atol) or not np.isclose(
+            translations[c_idx], 0.0, atol=atol
+        ):
             raise ValueError(
                 "Expected channel axis unchanged: c-scale=1 and c-translation=0."
             )
-        sc, tc = 1.0, 0.0
+        scales[c_idx] = 1.0
+        translations[c_idx] = 0.0
 
     # OME-NGFF v0.4: scale and optional translation.
     coordinate_transformations: list[dict[str, Any]] = [
-        {"type": "scale", "scale": [float(sc), float(sy), float(sx)]}
+        {"type": "scale", "scale": [float(s) for s in scales]}
     ]
 
-    if not np.allclose([tc, ty, tx], [0.0, 0.0, 0.0], atol=atol):
+    if not np.allclose(translations, np.zeros(n_axes, dtype=float), atol=atol):
         coordinate_transformations.append(
-            {"type": "translation", "translation": [float(tc), float(ty), float(tx)]}
+            {"type": "translation", "translation": [float(t) for t in translations]}
         )
 
     return coordinate_transformations
@@ -286,6 +325,7 @@ def _spatialdata_transformation_to_ngff(
     sdata: SpatialData,
     layer: str,
     to_coordinate_system: str = "global",
+    axes: Sequence[str] = ("c", "y", "x"),
 ) -> list[dict[str, Any]]:
 
     transformations = get_transformation(sdata[layer], get_all=True)
@@ -293,12 +333,27 @@ def _spatialdata_transformation_to_ngff(
         raise ValueError(
             f"coordinate system {to_coordinate_system} not found for element {layer}.."
         )
+    axis_names = list(axes)
+    if len(axis_names) == 0:
+        raise ValueError("axes must contain at least one axis name.")
     transformation = transformations[to_coordinate_system]
     transformation = transformation.to_affine_matrix(
-        input_axes=["c", "y", "x"], output_axes=["c", "y", "x"]
+        input_axes=axis_names, output_axes=axis_names
     )
-    # convert to ngff coordinate transformation
+
+    """
+    # this fails config validation, see https://github.com/vitessce/vitessce/blob/5bcf8d7351e14b29f477f228e8f472bc35ffade0/packages/schemas/src/file-def-options.ts#L153
+    affine_ct = {
+        "type": "affine",
+        "matrix": np.asarray(transformation, dtype=float).tolist(),
+    }
+    return [affine_ct]
+    """
+
+    # convert to ngff coordinate transformation, and limit to translation and scale
     coordinate_transformations = _affine_matrix_to_ngff_coordinate_transformations(
-        affine=transformation, enforce_c_identity=True
+        affine=transformation,
+        axes=axis_names,
+        enforce_c_identity="c" in axis_names,
     )
     return coordinate_transformations

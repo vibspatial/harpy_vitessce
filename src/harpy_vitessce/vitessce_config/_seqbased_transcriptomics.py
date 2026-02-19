@@ -120,6 +120,16 @@ def single_channel_image(
         )
     if center is not None and len(center) != 2:
         raise ValueError("center must be a tuple of two floats: (x, y).")
+    if zoom is not None and center is None:
+        logger.warning(
+            "zoom was provided without center. Vitessce may ignore zoom unless "
+            "center is also set."
+        )
+    if center is not None and zoom is None:
+        logger.warning(
+            "center was provided without zoom. Vitessce may ignore center unless "
+            "zoom is also set."
+        )
 
     vc = VitessceConfig(
         schema_version=schema_version,
@@ -226,6 +236,11 @@ def visium_hd(
 ) -> VitessceConfig:
     """
     Build a Vitessce configuration for exploring Visium HD data.
+
+    # TODO: compare how this spot based implementations compares to bin implementation as proposed here
+    # (i.e. for visium work with bins instead of spots, for other seq transcriptomics
+    # this will not always work, because they are aranged in a hexagon).
+    https://github.com/vitessce/vitessce-python/blob/main/docs/notebooks/spatial_data_visium_hd.ipynb
 
     Parameters
     ----------
@@ -460,6 +475,16 @@ def visium_hd(
         raise ValueError("emb_radius must be > 0 when emb_radius_mode='manual'.")
     if center is not None and len(center) != 2:
         raise ValueError("center must be a tuple of two floats: (x, y).")
+    if zoom is not None and center is None:
+        logger.warning(
+            "zoom was provided without center. Vitessce ignores zoom unless "
+            "center is also set."
+        )
+    if center is not None and zoom is None:
+        logger.warning(
+            "center was provided without zoom. Vitessce ignores center unless "
+            "zoom is also set."
+        )
 
     vc = VitessceConfig(
         schema_version=schema_version,
@@ -676,7 +701,7 @@ def visium_hd(
         )
 
     # note that it is also possible to create two spotlayers, one for qc, one for clusters+genes
-    #  but then we need two layer controllers, which looks kinda weird in the UI
+    # but then we need two layer controllers, which looks kinda weird in the UI
     linked_views = [spatial_plot, layer_controller]
     if spatial_qc is not None:
         linked_views.append(spatial_qc)
