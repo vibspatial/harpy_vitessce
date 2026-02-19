@@ -112,12 +112,7 @@ def _validate_annotation_keys(
         )
 
 
-def _validate_camera_and_layer(
-    *,
-    center: tuple[float, float] | None,
-    zoom: float | None,
-    layer_opacity: float,
-) -> None:
+def _validate_camera(*, center: tuple[float, float] | None, zoom: float | None) -> None:
     if center is not None and len(center) != 2:
         raise ValueError("center must be a tuple of two floats: (x, y).")
     if zoom is not None and center is None:
@@ -130,26 +125,11 @@ def _validate_camera_and_layer(
             "center was provided without zoom. Vitessce ignores center unless "
             "zoom is also set."
         )
+
+
+def _validate_layer_opacity(layer_opacity: float) -> None:
     if not 0.0 <= layer_opacity <= 1.0:
         raise ValueError("layer_opacity must be between 0.0 and 1.0.")
-
-
-def _build_vitessce_config(
-    *,
-    schema_version: str,
-    description: str,
-    base_dir: str | Path | None,
-    all_sources_remote: bool,
-) -> VitessceConfig:
-    return VitessceConfig(
-        schema_version=schema_version,
-        description=description,
-        base_dir=(
-            None
-            if all_sources_remote
-            else (str(base_dir) if base_dir is not None else None)
-        ),
-    )
 
 
 def _apply_layout(vc: VitessceConfig, *, views: _ProteomicsViews) -> None:
@@ -684,7 +664,8 @@ def proteomics_sdata(
         embedding_key=embedding_key,
         embedding_display_name=embedding_display_name,
     )
-    _validate_camera_and_layer(center=center, zoom=zoom, layer_opacity=layer_opacity)
+    _validate_camera(center=center, zoom=zoom)
+    _validate_layer_opacity(layer_opacity)
 
     if img_layer is None:
         raise ValueError("img_layer is required when sdata is provided.")
@@ -709,11 +690,14 @@ def proteomics_sdata(
         sdata_path,
         "sdata_path",
     )
-    vc = _build_vitessce_config(
+    vc = VitessceConfig(
         schema_version=schema_version,
         description=description,
-        base_dir=base_dir,
-        all_sources_remote=is_sdata_remote,
+        base_dir=(
+            None
+            if is_sdata_remote
+            else (str(base_dir) if base_dir is not None else None)
+        ),
     )
 
     dataset_context = _add_spatialdata_wrapper(
@@ -865,7 +849,8 @@ def proteomics(
         embedding_key=embedding_key,
         embedding_display_name=embedding_display_name,
     )
-    _validate_camera_and_layer(center=center, zoom=zoom, layer_opacity=layer_opacity)
+    _validate_camera(center=center, zoom=zoom)
+    _validate_layer_opacity(layer_opacity)
 
     if not modes.needs_adata and adata_source is not None:
         logger.warning(
@@ -923,11 +908,14 @@ def proteomics(
         and (normalized_labels_source is None or is_labels_remote)
         and (normalized_adata_source is None or is_adata_remote)
     )
-    vc = _build_vitessce_config(
+    vc = VitessceConfig(
         schema_version=schema_version,
         description=description,
-        base_dir=base_dir,
-        all_sources_remote=all_sources_remote,
+        base_dir=(
+            None
+            if all_sources_remote
+            else (str(base_dir) if base_dir is not None else None)
+        ),
     )
 
     dataset_context = _add_raw_wrappers(
