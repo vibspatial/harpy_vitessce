@@ -25,11 +25,11 @@ Example visualization for Visium HD can be found
     - :doc:`Minimal notebook <tutorials/visium_hd/visium_hd_spatialdata>`
     - :doc:`End to end notebook <tutorials/visium_hd/visium_hd>`
 
-.. card:: MACSima Usage
-    :link: tutorials/macsima
+.. card:: Proteomics Usage
+    :link: tutorials/proteomics/spatialdata_blobs
     :link-type: doc
 
-    Image-only configuration with SpatialData or direct image source.
+    Create Vitessce configurations for proteomics datasets.
 
 .. card:: Source Repository
     :link: https://github.com/vibspatial/harpy_vitessce
