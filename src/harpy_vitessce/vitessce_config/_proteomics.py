@@ -96,7 +96,7 @@ def _validate_annotation_keys(
     cluster_key: str | None,
     cluster_key_display_name: str,
     embedding_key: str | None,
-    embedding_display_name: str,
+    embedding_key_display_name: str,
 ) -> None:
     if cluster_key is not None and not cluster_key:
         raise ValueError("cluster_key must be a non-empty string when provided.")
@@ -106,9 +106,9 @@ def _validate_annotation_keys(
         )
     if embedding_key is not None and not embedding_key:
         raise ValueError("embedding_key must be a non-empty string when provided.")
-    if embedding_key is not None and not embedding_display_name:
+    if embedding_key is not None and not embedding_key_display_name:
         raise ValueError(
-            "embedding_display_name must be non-empty when embedding_key is provided."
+            "embedding_key_display_name must be non-empty when embedding_key is provided."
         )
 
 
@@ -185,7 +185,7 @@ def _build_shared_visualization(
     *,
     dataset_context: _ProteomicsDatasetContext,
     modes: _ProteomicsModes,
-    embedding_display_name: str,
+    embedding_key_display_name: str,
     center: tuple[float, float] | None,
     zoom: float | None,
     channels: Sequence[int | str] | None,
@@ -226,7 +226,7 @@ def _build_shared_visualization(
         vc.add_view(
             cm.SCATTERPLOT,
             dataset=dataset_context.dataset,
-            mapping=embedding_display_name,
+            mapping=embedding_key_display_name,
         )
         if modes.has_embedding
         else None
@@ -422,7 +422,7 @@ def _add_raw_wrappers(
     cluster_key: str | None,
     cluster_key_display_name: str,
     embedding_key: str | None,
-    embedding_display_name: str,
+    embedding_key_display_name: str,
 ) -> _ProteomicsDatasetContext:
     file_uuid = f"img_macsima_{uuid.uuid4()}"
     img_wrapper_kwargs: dict[str, object] = {
@@ -473,7 +473,7 @@ def _add_raw_wrappers(
         if modes.has_embedding:
             assert embedding_key is not None
             adata_wrapper_kwargs["obs_embedding_paths"] = [f"obsm/{embedding_key}"]
-            adata_wrapper_kwargs["obs_embedding_names"] = [embedding_display_name]
+            adata_wrapper_kwargs["obs_embedding_names"] = [embedding_key_display_name]
         adata_wrapper_kwargs["adata_url" if is_adata_remote else "adata_path"] = (
             adata_source
         )
@@ -499,7 +499,7 @@ def _add_spatialdata_wrapper(
     cluster_key: str | None,
     cluster_key_display_name: str,
     embedding_key: str | None,
-    embedding_display_name: str,
+    embedding_key_display_name: str,
 ) -> _ProteomicsDatasetContext:
     file_uuid = f"sdata_macsima_{uuid.uuid4()}"
     labels_file_uuid: str | None = file_uuid if labels_layer is not None else None
@@ -540,7 +540,7 @@ def _add_spatialdata_wrapper(
             and embedding_key is not None
         )
         else None,
-        obs_embedding_names=[embedding_display_name] if modes.has_embedding else None,
+        obs_embedding_names=[embedding_key_display_name] if modes.has_embedding else None,
         coordinate_system=to_coordinate_system,
         coordination_values=file_coordination_values,
     )
@@ -573,7 +573,7 @@ def proteomics_sdata(
     cluster_key: str | None = None,
     cluster_key_display_name: str = "Clusters",
     embedding_key: str | None = None,
-    embedding_display_name: str = "UMAP",
+    embedding_key_display_name: str = "UMAP",
 ) -> VitessceConfig:
     """
     Build a Vitessce configuration for proteomics image/segmentation visualization
@@ -628,7 +628,7 @@ def proteomics_sdata(
     embedding_key
         Optional key under table ``obsm`` used for embedding coordinates.
         Set to ``None`` to disable the UMAP scatterplot view.
-    embedding_display_name
+    embedding_key_display_name
         Display label for the embedding in Vitessce and scatterplot mapping.
 
     Returns
@@ -643,7 +643,7 @@ def proteomics_sdata(
         If ``cluster_key`` is provided as an empty string.
         If ``cluster_key_display_name`` is empty when ``cluster_key`` is provided.
         If ``embedding_key`` is provided as an empty string.
-        If ``embedding_display_name`` is empty when ``embedding_key`` is provided.
+        If ``embedding_key_display_name`` is empty when ``embedding_key`` is provided.
         If ``center`` is provided but is not a 2-item tuple.
         If ``layer_opacity`` is outside ``[0, 1]``.
         If ``img_layer`` is missing.
@@ -662,7 +662,7 @@ def proteomics_sdata(
         cluster_key=cluster_key,
         cluster_key_display_name=cluster_key_display_name,
         embedding_key=embedding_key,
-        embedding_display_name=embedding_display_name,
+        embedding_key_display_name=embedding_key_display_name,
     )
     _validate_camera(center=center, zoom=zoom)
     _validate_layer_opacity(layer_opacity)
@@ -712,14 +712,14 @@ def proteomics_sdata(
         cluster_key=cluster_key,
         cluster_key_display_name=cluster_key_display_name,
         embedding_key=embedding_key,
-        embedding_display_name=embedding_display_name,
+        embedding_key_display_name=embedding_key_display_name,
     )
 
     _build_shared_visualization(
         vc,
         dataset_context=dataset_context,
         modes=modes,
-        embedding_display_name=embedding_display_name,
+        embedding_key_display_name=embedding_key_display_name,
         center=center,
         zoom=zoom,
         channels=channels,
@@ -751,7 +751,7 @@ def proteomics(
     cluster_key: str | None = None,
     cluster_key_display_name: str = "Clusters",
     embedding_key: str | None = None,
-    embedding_display_name: str = "UMAP",
+    embedding_key_display_name: str = "UMAP",
 ) -> VitessceConfig:
     """
     Build a Vitessce configuration for proteomics image/segmentation visualization
@@ -811,7 +811,7 @@ def proteomics(
         Display label for ``cluster_key`` in the UI.
     embedding_key
         Optional key under AnnData ``obsm`` for embedding coordinates.
-    embedding_display_name
+    embedding_key_display_name
         Display label for the embedding in the UI and mapping name.
 
     Returns
@@ -824,7 +824,7 @@ def proteomics(
     ------
     ValueError
         If ``cluster_key``/``embedding_key`` is provided as an empty string.
-        If ``cluster_key_display_name``/``embedding_display_name`` is empty
+        If ``cluster_key_display_name``/``embedding_key_display_name`` is empty
         while its corresponding key is provided.
         If ``center`` is not length 2.
         If ``layer_opacity`` is outside ``[0, 1]``.
@@ -847,7 +847,7 @@ def proteomics(
         cluster_key=cluster_key,
         cluster_key_display_name=cluster_key_display_name,
         embedding_key=embedding_key,
-        embedding_display_name=embedding_display_name,
+        embedding_key_display_name=embedding_key_display_name,
     )
     _validate_camera(center=center, zoom=zoom)
     _validate_layer_opacity(layer_opacity)
@@ -933,14 +933,14 @@ def proteomics(
         cluster_key=cluster_key,
         cluster_key_display_name=cluster_key_display_name,
         embedding_key=embedding_key,
-        embedding_display_name=embedding_display_name,
+        embedding_key_display_name=embedding_key_display_name,
     )
 
     _build_shared_visualization(
         vc,
         dataset_context=dataset_context,
         modes=modes,
-        embedding_display_name=embedding_display_name,
+        embedding_key_display_name=embedding_key_display_name,
         center=center,
         zoom=zoom,
         channels=channels,
