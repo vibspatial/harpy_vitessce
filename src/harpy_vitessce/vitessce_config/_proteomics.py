@@ -152,246 +152,6 @@ def _build_vitessce_config(
     )
 
 
-def _add_camera_coordination(
-    vc: VitessceConfig,
-    *,
-    center: tuple[float, float] | None,
-    zoom: float | None,
-) -> tuple[Any, Any, Any]:
-    spatial_zoom, spatial_target_x, spatial_target_y = vc.add_coordination(
-        ct.SPATIAL_ZOOM,
-        ct.SPATIAL_TARGET_X,
-        ct.SPATIAL_TARGET_Y,
-    )
-    if zoom is not None:
-        spatial_zoom.set_value(zoom)
-    if center is not None:
-        spatial_target_x.set_value(center[0])
-        spatial_target_y.set_value(center[1])
-    return spatial_zoom, spatial_target_x, spatial_target_y
-
-
-def _add_views(
-    vc: VitessceConfig,
-    *,
-    dataset: Any,
-    modes: _ProteomicsModes,
-    embedding_display_name: str,
-) -> _ProteomicsViews:
-    spatial_plot = vc.add_view(SPATIAL_VIEW, dataset=dataset)
-    layer_controller = vc.add_view(LAYER_CONTROLLER_VIEW, dataset=dataset)
-    feature_list = (
-        vc.add_view(cm.FEATURE_LIST, dataset=dataset)
-        if modes.has_feature_matrix
-        else None
-    )
-    heatmap = vc.add_view(cm.HEATMAP, dataset=dataset) if modes.has_heatmap else None
-    obs_sets = vc.add_view(cm.OBS_SETS, dataset=dataset) if modes.has_clusters else None
-    umap = (
-        vc.add_view(cm.SCATTERPLOT, dataset=dataset, mapping=embedding_display_name)
-        if modes.has_embedding
-        else None
-    )
-    return _ProteomicsViews(
-        spatial_plot=spatial_plot,
-        layer_controller=layer_controller,
-        feature_list=feature_list,
-        heatmap=heatmap,
-        obs_sets=obs_sets,
-        umap=umap,
-    )
-
-
-def _wire_observation_coordination(
-    vc: VitessceConfig,
-    *,
-    views: _ProteomicsViews,
-    modes: _ProteomicsModes,
-) -> Any | None:
-    obs_color = None
-
-    if modes.has_matrix_data and modes.has_clusters:
-        (
-            obs_type,
-            feat_type,
-            feat_val_type,
-            obs_color,
-            feat_sel,
-            obs_set_sel,
-        ) = vc.add_coordination(
-            ct.OBS_TYPE,
-            ct.FEATURE_TYPE,
-            ct.FEATURE_VALUE_TYPE,
-            ct.OBS_COLOR_ENCODING,
-            ct.FEATURE_SELECTION,
-            ct.OBS_SET_SELECTION,
-        )
-        obs_type.set_value(OBS_TYPE_CELL)
-        feat_type.set_value(FEATURE_TYPE_MARKER)
-        feat_val_type.set_value(FEATURE_VALUE_TYPE_INTENSITY)
-        obs_color.set_value(OBS_COLOR_CELL_SET_SELECTION)
-        feat_sel.set_value(None)
-        obs_set_sel.set_value(None)
-
-        views.spatial_plot.use_coordination(
-            obs_type,
-            feat_type,
-            feat_val_type,
-            obs_color,
-            feat_sel,
-            obs_set_sel,
-        )
-        if views.feature_list is not None:
-            views.feature_list.use_coordination(
-                obs_type,
-                obs_color,
-                feat_sel,
-                feat_type,
-                feat_val_type,
-            )
-        if views.obs_sets is not None:
-            views.obs_sets.use_coordination(obs_type, obs_set_sel, obs_color)
-        if views.heatmap is not None:
-            views.heatmap.use_coordination(
-                obs_type,
-                feat_type,
-                feat_val_type,
-                feat_sel,
-                obs_set_sel,
-            )
-        if views.umap is not None:
-            views.umap.use_coordination(
-                obs_type,
-                feat_type,
-                feat_val_type,
-                obs_color,
-                feat_sel,
-                obs_set_sel,
-            )
-        return obs_color
-
-    if modes.has_matrix_data:
-        obs_type, feat_type, feat_val_type, obs_color, feat_sel = vc.add_coordination(
-            ct.OBS_TYPE,
-            ct.FEATURE_TYPE,
-            ct.FEATURE_VALUE_TYPE,
-            ct.OBS_COLOR_ENCODING,
-            ct.FEATURE_SELECTION,
-        )
-        obs_type.set_value(OBS_TYPE_CELL)
-        feat_type.set_value(FEATURE_TYPE_MARKER)
-        feat_val_type.set_value(FEATURE_VALUE_TYPE_INTENSITY)
-        obs_color.set_value(OBS_COLOR_GENE_SELECTION)
-        feat_sel.set_value(None)
-
-        views.spatial_plot.use_coordination(
-            obs_type,
-            feat_type,
-            feat_val_type,
-            obs_color,
-            feat_sel,
-        )
-        if views.feature_list is not None:
-            views.feature_list.use_coordination(
-                obs_type,
-                obs_color,
-                feat_sel,
-                feat_type,
-                feat_val_type,
-            )
-        if views.heatmap is not None:
-            views.heatmap.use_coordination(obs_type, feat_type, feat_val_type, feat_sel)
-        if views.umap is not None:
-            views.umap.use_coordination(
-                obs_type,
-                feat_type,
-                feat_val_type,
-                obs_color,
-                feat_sel,
-            )
-        return obs_color
-
-    if modes.has_clusters:
-        obs_type, obs_color, obs_set_sel = vc.add_coordination(
-            ct.OBS_TYPE,
-            ct.OBS_COLOR_ENCODING,
-            ct.OBS_SET_SELECTION,
-        )
-        obs_type.set_value(OBS_TYPE_CELL)
-        obs_color.set_value(OBS_COLOR_CELL_SET_SELECTION)
-        obs_set_sel.set_value(None)
-
-        views.spatial_plot.use_coordination(obs_type, obs_color, obs_set_sel)
-        if views.obs_sets is not None:
-            views.obs_sets.use_coordination(obs_type, obs_set_sel, obs_color)
-        if views.umap is not None:
-            views.umap.use_coordination(obs_type, obs_color, obs_set_sel)
-        return obs_color
-
-    if modes.has_embedding:
-        (obs_type,) = vc.add_coordination(ct.OBS_TYPE)
-        obs_type.set_value(OBS_TYPE_CELL)
-        views.spatial_plot.use_coordination(obs_type)
-        if views.umap is not None:
-            views.umap.use_coordination(obs_type)
-
-    return None
-
-
-def _link_layers(
-    vc: VitessceConfig,
-    *,
-    views: _ProteomicsViews,
-    file_uuid: str,
-    labels_file_uuid: str | None,
-    obs_color: Any | None,
-    modes: _ProteomicsModes,
-    channels: Sequence[int | str] | None,
-    palette: Sequence[str] | None,
-    layer_opacity: float,
-) -> None:
-    image_layer = build_image_layer_config(
-        file_uid=file_uuid,
-        channels=channels,
-        palette=palette,
-        visualize_as_rgb=False,
-        layer_opacity=layer_opacity,
-    )
-
-    vc.link_views_by_dict(
-        [views.spatial_plot, views.layer_controller],
-        {"imageLayer": CL([image_layer])},
-        scope_prefix=get_initial_coordination_scope_prefix("A", "image"),
-    )
-
-    if labels_file_uuid is None:
-        return
-
-    segmentation_channel: dict[str, object] = {
-        "spatialTargetC": 0,
-        "spatialChannelOpacity": 0.75,
-    }
-    if obs_color is not None:
-        segmentation_channel["obsColorEncoding"] = obs_color
-    if modes.has_matrix_data:
-        segmentation_channel["featureValueColormapRange"] = [0, 1]
-
-    vc.link_views_by_dict(
-        [views.spatial_plot, views.layer_controller],
-        {
-            "segmentationLayer": CL(
-                [
-                    {
-                        "fileUid": labels_file_uuid,
-                        "segmentationChannel": CL([segmentation_channel]),
-                    }
-                ]
-            )
-        },
-        scope_prefix=get_initial_coordination_scope_prefix("A", "obsSegmentations"),
-    )
-
-
 def _apply_layout(vc: VitessceConfig, *, views: _ProteomicsViews) -> None:
     views.layer_controller.set_props(disableChannelsIfRgbDetected=False)
 
@@ -452,34 +212,217 @@ def _build_shared_visualization(
     palette: Sequence[str] | None,
     layer_opacity: float,
 ) -> None:
-    spatial_zoom, spatial_target_x, spatial_target_y = _add_camera_coordination(
-        vc,
-        center=center,
-        zoom=zoom,
+    spatial_zoom, spatial_target_x, spatial_target_y = vc.add_coordination(
+        ct.SPATIAL_ZOOM,
+        ct.SPATIAL_TARGET_X,
+        ct.SPATIAL_TARGET_Y,
+    )
+    if zoom is not None:
+        spatial_zoom.set_value(zoom)
+    if center is not None:
+        spatial_target_x.set_value(center[0])
+        spatial_target_y.set_value(center[1])
+
+    spatial_plot = vc.add_view(SPATIAL_VIEW, dataset=dataset_context.dataset)
+    layer_controller = vc.add_view(
+        LAYER_CONTROLLER_VIEW, dataset=dataset_context.dataset
+    )
+    feature_list = (
+        vc.add_view(cm.FEATURE_LIST, dataset=dataset_context.dataset)
+        if modes.has_feature_matrix
+        else None
+    )
+    heatmap = (
+        vc.add_view(cm.HEATMAP, dataset=dataset_context.dataset)
+        if modes.has_heatmap
+        else None
+    )
+    obs_sets = (
+        vc.add_view(cm.OBS_SETS, dataset=dataset_context.dataset)
+        if modes.has_clusters
+        else None
+    )
+    umap = (
+        vc.add_view(
+            cm.SCATTERPLOT,
+            dataset=dataset_context.dataset,
+            mapping=embedding_display_name,
+        )
+        if modes.has_embedding
+        else None
     )
 
-    views = _add_views(
-        vc,
-        dataset=dataset_context.dataset,
-        modes=modes,
-        embedding_display_name=embedding_display_name,
+    views = _ProteomicsViews(
+        spatial_plot=spatial_plot,
+        layer_controller=layer_controller,
+        feature_list=feature_list,
+        heatmap=heatmap,
+        obs_sets=obs_sets,
+        umap=umap,
     )
     views.spatial_plot.use_coordination(
         spatial_zoom, spatial_target_x, spatial_target_y
     )
 
-    obs_color = _wire_observation_coordination(vc, views=views, modes=modes)
-    _link_layers(
-        vc,
-        views=views,
-        file_uuid=dataset_context.file_uuid,
-        labels_file_uuid=dataset_context.labels_file_uuid,
-        obs_color=obs_color,
-        modes=modes,
+    obs_color = None
+    if modes.has_matrix_data and modes.has_clusters:
+        (
+            obs_type,
+            feat_type,
+            feat_val_type,
+            obs_color,
+            feat_sel,
+            obs_set_sel,
+        ) = vc.add_coordination(
+            ct.OBS_TYPE,
+            ct.FEATURE_TYPE,
+            ct.FEATURE_VALUE_TYPE,
+            ct.OBS_COLOR_ENCODING,
+            ct.FEATURE_SELECTION,
+            ct.OBS_SET_SELECTION,
+        )
+        obs_type.set_value(OBS_TYPE_CELL)
+        feat_type.set_value(FEATURE_TYPE_MARKER)
+        feat_val_type.set_value(FEATURE_VALUE_TYPE_INTENSITY)
+        obs_color.set_value(OBS_COLOR_CELL_SET_SELECTION)
+        feat_sel.set_value(None)
+        obs_set_sel.set_value(None)
+
+        views.spatial_plot.use_coordination(
+            obs_type,
+            feat_type,
+            feat_val_type,
+            obs_color,
+            feat_sel,
+            obs_set_sel,
+        )
+        if views.feature_list is not None:
+            views.feature_list.use_coordination(
+                obs_type,
+                obs_color,
+                feat_sel,
+                feat_type,
+                feat_val_type,
+            )
+        if views.obs_sets is not None:
+            views.obs_sets.use_coordination(obs_type, obs_set_sel, obs_color)
+        if views.heatmap is not None:
+            views.heatmap.use_coordination(
+                obs_type,
+                feat_type,
+                feat_val_type,
+                feat_sel,
+                obs_set_sel,
+            )
+        if views.umap is not None:
+            views.umap.use_coordination(
+                obs_type,
+                feat_type,
+                feat_val_type,
+                obs_color,
+                feat_sel,
+                obs_set_sel,
+            )
+    elif modes.has_matrix_data:
+        obs_type, feat_type, feat_val_type, obs_color, feat_sel = vc.add_coordination(
+            ct.OBS_TYPE,
+            ct.FEATURE_TYPE,
+            ct.FEATURE_VALUE_TYPE,
+            ct.OBS_COLOR_ENCODING,
+            ct.FEATURE_SELECTION,
+        )
+        obs_type.set_value(OBS_TYPE_CELL)
+        feat_type.set_value(FEATURE_TYPE_MARKER)
+        feat_val_type.set_value(FEATURE_VALUE_TYPE_INTENSITY)
+        obs_color.set_value(OBS_COLOR_GENE_SELECTION)
+        feat_sel.set_value(None)
+
+        views.spatial_plot.use_coordination(
+            obs_type,
+            feat_type,
+            feat_val_type,
+            obs_color,
+            feat_sel,
+        )
+        if views.feature_list is not None:
+            views.feature_list.use_coordination(
+                obs_type,
+                obs_color,
+                feat_sel,
+                feat_type,
+                feat_val_type,
+            )
+        if views.heatmap is not None:
+            views.heatmap.use_coordination(obs_type, feat_type, feat_val_type, feat_sel)
+        if views.umap is not None:
+            views.umap.use_coordination(
+                obs_type,
+                feat_type,
+                feat_val_type,
+                obs_color,
+                feat_sel,
+            )
+    elif modes.has_clusters:
+        obs_type, obs_color, obs_set_sel = vc.add_coordination(
+            ct.OBS_TYPE,
+            ct.OBS_COLOR_ENCODING,
+            ct.OBS_SET_SELECTION,
+        )
+        obs_type.set_value(OBS_TYPE_CELL)
+        obs_color.set_value(OBS_COLOR_CELL_SET_SELECTION)
+        obs_set_sel.set_value(None)
+
+        views.spatial_plot.use_coordination(obs_type, obs_color, obs_set_sel)
+        if views.obs_sets is not None:
+            views.obs_sets.use_coordination(obs_type, obs_set_sel, obs_color)
+        if views.umap is not None:
+            views.umap.use_coordination(obs_type, obs_color, obs_set_sel)
+    elif modes.has_embedding:
+        (obs_type,) = vc.add_coordination(ct.OBS_TYPE)
+        obs_type.set_value(OBS_TYPE_CELL)
+        views.spatial_plot.use_coordination(obs_type)
+        if views.umap is not None:
+            views.umap.use_coordination(obs_type)
+
+    image_layer = build_image_layer_config(
+        file_uid=dataset_context.file_uuid,
         channels=channels,
         palette=palette,
+        visualize_as_rgb=False,
         layer_opacity=layer_opacity,
     )
+
+    vc.link_views_by_dict(
+        [views.spatial_plot, views.layer_controller],
+        {"imageLayer": CL([image_layer])},
+        scope_prefix=get_initial_coordination_scope_prefix("A", "image"),
+    )
+
+    if dataset_context.labels_file_uuid is not None:
+        segmentation_channel: dict[str, object] = {
+            "spatialTargetC": 0,
+            "spatialChannelOpacity": 0.75,
+        }
+        if obs_color is not None:
+            segmentation_channel["obsColorEncoding"] = obs_color
+        if modes.has_matrix_data:
+            segmentation_channel["featureValueColormapRange"] = [0, 1]
+
+        vc.link_views_by_dict(
+            [views.spatial_plot, views.layer_controller],
+            {
+                "segmentationLayer": CL(
+                    [
+                        {
+                            "fileUid": dataset_context.labels_file_uuid,
+                            "segmentationChannel": CL([segmentation_channel]),
+                        }
+                    ]
+                )
+            },
+            scope_prefix=get_initial_coordination_scope_prefix("A", "obsSegmentations"),
+        )
+
     _apply_layout(vc, views=views)
 
 
@@ -653,7 +596,7 @@ def proteomics_sdata(
     embedding_display_name: str = "UMAP",
 ) -> VitessceConfig:
     """
-    Build a Vitessce configuration for MACSima image/segmentation visualization
+    Build a Vitessce configuration for proteomics image/segmentation visualization
     from a SpatialData store.
 
     Parameters
@@ -827,7 +770,7 @@ def proteomics(
     embedding_display_name: str = "UMAP",
 ) -> VitessceConfig:
     """
-    Build a Vitessce configuration for MACSima image/segmentation visualization
+    Build a Vitessce configuration for proteomics image/segmentation visualization
     from explicit image/labels/AnnData sources.
 
     Parameters
