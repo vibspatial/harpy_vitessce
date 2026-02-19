@@ -540,7 +540,9 @@ def _add_spatialdata_wrapper(
             and embedding_key is not None
         )
         else None,
-        obs_embedding_names=[embedding_key_display_name] if modes.has_embedding else None,
+        obs_embedding_names=[embedding_key_display_name]
+        if modes.has_embedding
+        else None,
         coordinate_system=to_coordinate_system,
         coordination_values=file_coordination_values,
     )
@@ -553,7 +555,7 @@ def _add_spatialdata_wrapper(
     )
 
 
-def proteomics_sdata(
+def proteomics_from_spatialdata(
     sdata_path: str | Path,
     img_layer: str | None = None,
     labels_layer: str | None = None,
@@ -589,10 +591,17 @@ def proteomics_sdata(
     labels_layer
         Labels layer name under ``labels`` in SpatialData.
         Required when table-driven visualizations are enabled.
+        When table-driven visualizations are enabled, this layer should be
+        annotated by ``table_layer`` via ``region_key`` and ``instance_key``.
     table_layer
         Table layer name under ``tables`` in SpatialData.
         Required when feature matrix, heatmap, clusters, or embedding
         visualizations are enabled.
+        The table is expected to annotate ``labels_layer``:
+        ``region_key`` is the key in ``adata.obs`` that specifies the region
+        (i.e. the ``labels_layer``), and ``instance_key`` is the key in
+        ``adata.obs`` that specifies the instance (i.e. instance IDs in
+        ``labels_layer``).
     base_dir
         Optional base directory for local path resolution in the emitted config.
         Ignored when ``sdata_path`` is a remote URL.
@@ -729,7 +738,7 @@ def proteomics_sdata(
     return vc
 
 
-def proteomics(
+def proteomics_from_split_sources(
     img_source: str | Path,
     labels_source: str | Path | None = None,
     adata_source: str | Path | None = None,
@@ -761,9 +770,11 @@ def proteomics(
     ----------
     img_source
         Path/URL to an OME-Zarr image.
+        Expected axes order is ``(c, y, x)``.
     labels_source
         Path/URL to an OME-Zarr labels segmentation.
         Required when table-driven visualizations are enabled.
+        Expected axes order is ``(y, x)``.
     adata_source
         Path/URL to an AnnData ``.zarr``/``.h5ad`` source.
         Required when feature matrix, clusters, or embedding visualizations are
