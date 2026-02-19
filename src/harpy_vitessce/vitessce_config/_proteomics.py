@@ -602,6 +602,10 @@ def proteomics_from_spatialdata(
         (i.e. the ``labels_layer``), and ``instance_key`` is the key in
         ``adata.obs`` that specifies the instance (i.e. instance IDs in
         ``labels_layer``).
+        If this annotation metadata is unavailable, Vitessce falls back to
+        linking via the table ``obs`` index. Vitessce currently applies
+        JavaScript ``parseInt`` to observation indices, so values like
+        ``"123_cellA"`` still map to label ID ``123``.
     base_dir
         Optional base directory for local path resolution in the emitted config.
         Ignored when ``sdata_path`` is a remote URL.
@@ -780,6 +784,9 @@ def proteomics_from_split_sources(
         Required when feature matrix, clusters, or embedding visualizations are
         enabled.
         In this mode, ``obs`` indices should match segmentation label IDs.
+        Note that Vitessce currently applies JavaScript ``parseInt`` to
+        observation indices. So indices like ``"<ID>_..."`` (for example
+        ``"123_cellA"``) still link to label ID ``123`` in ``labels_source``.
     base_dir
         Optional base directory for local paths in the config.
         Ignored when all sources are remote URLs.
