@@ -21,6 +21,7 @@ from vitessce import (
 from vitessce import (
     CoordinationType as ct,
 )
+from vitessce.config import VitessceConfigDataset
 
 from harpy_vitessce.vitessce_config._constants import (
     FEATURE_TYPE_GENE,
@@ -322,7 +323,7 @@ def _apply_seqbased_layout(
 def _build_seqbased_visualization(
     vc: VitessceConfig,
     *,
-    dataset: Any,
+    dataset: VitessceConfigDataset,
     file_uuid: str,
     obs_type_value: str,
     use_spot_layer: bool,
@@ -558,7 +559,7 @@ def _add_spatialdata_wrappers(
     embedding_key: str | None,
     embedding_display_name: str,
     qc_obs_feature_keys: tuple[str, ...],
-) -> tuple[Any, str]:
+) -> tuple[VitessceConfigDataset, str]:
     table_path = f"tables/{table_layer}"
     file_uuid = f"seqbased_{uuid.uuid4()}"
     expression_wrapper = SpatialDataWrapper(
@@ -610,7 +611,7 @@ def _add_spatialdata_wrappers(
     return dataset, file_uuid
 
 
-def _add_split_source_wrappers(
+def _add_raw_wrappers(
     vc: VitessceConfig,
     *,
     name: str,
@@ -626,7 +627,7 @@ def _add_split_source_wrappers(
     embedding_key: str | None,
     embedding_display_name: str,
     qc_obs_feature_keys: tuple[str, ...],
-) -> tuple[Any, str]:
+) -> tuple[VitessceConfigDataset, str]:
     file_uuid = f"img_h&e_{uuid.uuid4()}"
     img_wrapper_kwargs: dict[str, object] = {
         "coordination_values": {"fileUid": file_uuid},
@@ -1069,7 +1070,7 @@ def seqbased_transcriptomics_from_split_sources(
         ),
     )
 
-    dataset, file_uuid = _add_split_source_wrappers(
+    dataset, file_uuid = _add_raw_wrappers(
         vc,
         name=name,
         img_source=normalized_img_source,

@@ -24,6 +24,7 @@ from vitessce import (
 from vitessce import (
     CoordinationType as ct,
 )
+from vitessce.config import VitessceConfigDataset
 
 from harpy_vitessce.vitessce_config._constants import (
     LAYER_CONTROLLER_VIEW,
@@ -53,14 +54,6 @@ class _ProteomicsModes:
     has_clusters: bool
     has_embedding: bool
     needs_adata: bool
-
-
-# TODO -> this is overengineered, remove it.
-@dataclass(frozen=True)
-class _ProteomicsDatasetContext:
-    dataset: Any
-    file_uuid: str
-    labels_file_uuid: str | None
 
 
 @dataclass(frozen=True)
@@ -172,7 +165,9 @@ def _apply_layout(vc: VitessceConfig, *, views: _ProteomicsViews) -> None:
 def _build_shared_visualization(
     vc: VitessceConfig,
     *,
-    dataset_context: _ProteomicsDatasetContext,
+    dataset: VitessceConfigDataset,
+    file_uuid: str,
+    labels_file_uuid: str | None,
     modes: _ProteomicsModes,
     embedding_key_display_name: str,
     center: tuple[float, float] | None,
@@ -192,29 +187,27 @@ def _build_shared_visualization(
         spatial_target_x.set_value(center[0])
         spatial_target_y.set_value(center[1])
 
-    spatial_plot = vc.add_view(SPATIAL_VIEW, dataset=dataset_context.dataset)
-    layer_controller = vc.add_view(
-        LAYER_CONTROLLER_VIEW, dataset=dataset_context.dataset
-    )
+    spatial_plot = vc.add_view(SPATIAL_VIEW, dataset=dataset)
+    layer_controller = vc.add_view(LAYER_CONTROLLER_VIEW, dataset=dataset)
     feature_list = (
-        vc.add_view(cm.FEATURE_LIST, dataset=dataset_context.dataset)
+        vc.add_view(cm.FEATURE_LIST, dataset=dataset)
         if modes.has_feature_matrix
         else None
     )
     heatmap = (
-        vc.add_view(cm.HEATMAP, dataset=dataset_context.dataset)
+        vc.add_view(cm.HEATMAP, dataset=dataset)
         if modes.has_heatmap
         else None
     )
     obs_sets = (
-        vc.add_view(cm.OBS_SETS, dataset=dataset_context.dataset)
+        vc.add_view(cm.OBS_SETS, dataset=dataset)
         if modes.has_clusters
         else None
     )
     umap = (
         vc.add_view(
             cm.SCATTERPLOT,
-            dataset=dataset_context.dataset,
+            dataset=dataset,
             mapping=embedding_key_display_name,
         )
         if modes.has_embedding
@@ -354,7 +347,7 @@ def _build_shared_visualization(
             views.umap.use_coordination(obs_type)
 
     image_layer = build_image_layer_config(
-        file_uid=dataset_context.file_uuid,
+        file_uid=file_uuid,
         channels=channels,
         palette=palette,
         visualize_as_rgb=False,
@@ -367,7 +360,7 @@ def _build_shared_visualization(
         scope_prefix=get_initial_coordination_scope_prefix("A", "image"),
     )
 
-    if dataset_context.labels_file_uuid is not None:
+    if labels_file_uuid is not None:
         segmentation_channel: dict[str, object] = {
             "spatialTargetC": 0,
             "spatialChannelOpacity": 0.75,
@@ -383,7 +376,7 @@ def _build_shared_visualization(
                 "segmentationLayer": CL(
                     [
                         {
-                            "fileUid": dataset_context.labels_file_uuid,
+                            "fileUid": labels_file_uuid,
                             "segmentationChannel": CL([segmentation_channel]),
                         }
                     ]
@@ -412,7 +405,7 @@ def _add_raw_wrappers(
     cluster_key_display_name: str,
     embedding_key: str | None,
     embedding_key_display_name: str,
-) -> _ProteomicsDatasetContext:
+) -> tuple[VitessceConfigDataset, str, str | None]:
     file_uuid = f"img_proteomics_{uuid.uuid4()}"
     img_wrapper_kwargs: dict[str, object] = {
         "coordination_values": {"fileUid": file_uuid},
@@ -468,11 +461,7 @@ def _add_raw_wrappers(
         )
         dataset.add_object(AnnDataWrapper(**adata_wrapper_kwargs))
 
-    return _ProteomicsDatasetContext(
-        dataset=dataset,
-        file_uuid=file_uuid,
-        labels_file_uuid=labels_file_uuid,
-    )
+    return dataset, file_uuid, labels_file_uuid
 
 
 def _add_spatialdata_wrapper(
@@ -489,7 +478,7 @@ def _add_spatialdata_wrapper(
     cluster_key_display_name: str,
     embedding_key: str | None,
     embedding_key_display_name: str,
-) -> _ProteomicsDatasetContext:
+) -> tuple[VitessceConfigDataset, str, str | None]:
     file_uuid = f"sdata_macsima_{uuid.uuid4()}"
     labels_file_uuid: str | None = file_uuid if labels_layer is not None else None
 
@@ -537,11 +526,7 @@ def _add_spatialdata_wrapper(
     )
 
     dataset = vc.add_dataset(name=name).add_object(wrapper)
-    return _ProteomicsDatasetContext(
-        dataset=dataset,
-        file_uuid=file_uuid,
-        labels_file_uuid=labels_file_uuid,
-    )
+    return dataset, file_uuid, labels_file_uuid
 
 
 def proteomics_from_spatialdata(
@@ -702,7 +687,7 @@ def proteomics_from_spatialdata(
         ),
     )
 
-    dataset_context = _add_spatialdata_wrapper(
+    dataset, file_uuid, labels_file_uuid = _add_spatialdata_wrapper(
         vc,
         name=name,
         sdata_path=normalized_sdata_path,
@@ -719,7 +704,9 @@ def proteomics_from_spatialdata(
 
     _build_shared_visualization(
         vc,
-        dataset_context=dataset_context,
+        dataset=dataset,
+        file_uuid=file_uuid,
+        labels_file_uuid=labels_file_uuid,
         modes=modes,
         embedding_key_display_name=embedding_key_display_name,
         center=center,
@@ -925,7 +912,7 @@ def proteomics_from_split_sources(
         ),
     )
 
-    dataset_context = _add_raw_wrappers(
+    dataset, file_uuid, labels_file_uuid = _add_raw_wrappers(
         vc,
         name=name,
         img_source=normalized_img_source,
@@ -945,7 +932,9 @@ def proteomics_from_split_sources(
 
     _build_shared_visualization(
         vc,
-        dataset_context=dataset_context,
+        dataset=dataset,
+        file_uuid=file_uuid,
+        labels_file_uuid=labels_file_uuid,
         modes=modes,
         embedding_key_display_name=embedding_key_display_name,
         center=center,
