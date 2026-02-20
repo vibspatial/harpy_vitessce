@@ -12,6 +12,8 @@
 
 `Harpy-Vitessce` provides utilities to move from Harpy outputs to shareable Vitessce configurations.
 
+For more information on `Harpy` we refer to the [documentation](https://harpy.readthedocs.io/en/latest/).
+
 ## Installation (uv)
 
 Install the current `main` branch:
@@ -30,8 +32,9 @@ uv add "harpy-vitessce[vitessce] @ git+https://github.com/vibspatial/harpy_vites
 
 # Documentation
 
-Visium HD: [example](./docs/tutorials/visium_hd/visium_hd.ipynb) and a minimal version [here](./docs/tutorials/visium_hd/visium_hd_spatialdata.ipynb)
-MACSima [usage](./docs/tutorials/macsima.md).
+Visium HD: [example with bins](./docs/tutorials/visium_hd/visium_hd_bins_from_spatialdata.ipynb) and an example using spots [here](./docs/tutorials/visium_hd/visium_hd_spots.ipynb).
+
+Proteomics: example can be found [here](./docs/tutorials/proteomics/spatialdata_blobs.ipynb)
 
 # Example:
 
