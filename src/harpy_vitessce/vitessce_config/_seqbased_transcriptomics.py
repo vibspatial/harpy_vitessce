@@ -3,7 +3,6 @@ from pathlib import Path
 from typing import Literal, Mapping, Sequence
 
 from loguru import logger
-from spatialdata import SpatialData
 from vitessce import (
     AnnDataWrapper,
     ImageOmeZarrWrapper,
@@ -36,7 +35,6 @@ from harpy_vitessce.vitessce_config._constants import (
 )
 from harpy_vitessce.vitessce_config._image import (
     _resolve_image_coordinate_transformations,
-    _spatialdata_transformation_to_ngff,
     build_image_layer_config,
 )
 from harpy_vitessce.vitessce_config._utils import _normalize_path_or_url
@@ -733,15 +731,8 @@ def visium_hd_from_spatialdata(
 
 
 def visium_hd_from_split_sources(
-    sdata: SpatialData | None = None,
-    img_layer: str | None = None,
-    table_layer: str | None = None,
-    img_source: str
-    | Path
-    | None = None,  # local path relative to base_dir or remote URL
-    adata_source: str
-    | Path
-    | None = None,  # local path relative to base_dir or remote URL
+    img_source: str | Path,  # local path relative to base_dir or remote URL
+    adata_source: str | Path,  # local path relative to base_dir or remote URL
     name: str = "Visium HD",
     description: str = "Visium HD",
     schema_version: str = "1.0.18",
@@ -753,7 +744,6 @@ def visium_hd_from_split_sources(
     palette: Sequence[str] | None = None,
     microns_per_pixel: float | tuple[float, float] | None = None,
     coordinate_transformations: Sequence[Mapping[str, object]] | None = None,
-    to_coordinate_system: str = "global",
     spot_radius_size_micron: int = 8,
     spatial_key: str = "spatial",  # center of the spots. In micron coordinates
     cluster_key: str | None = "leiden",
@@ -769,24 +759,10 @@ def visium_hd_from_split_sources(
 ) -> VitessceConfig:
     """
     Build a Vitessce configuration for exploring Visium HD data.
+    This functions uses the SpatialDataWrapper.
 
     Parameters
     ----------
-    sdata
-        ``SpatialData`` object. When provided, image source is resolved
-        as ``sdata.path / "images" / img_layer`` and table source as
-        ``sdata.path / "tables" / table_layer``.
-    img_layer
-        Image layer name under ``images`` in ``sdata``. Required when ``sdata``
-        is provided.
-    table_layer
-        Table layer name under ``tables`` in ``sdata``. Required when ``sdata``
-        is provided.
-        Required field is ``obsm/{spatial_key}``.
-        Optional fields are ``obs/{cluster_key}``, ``obsm/{embedding_key}``,
-        and ``obs/{key}`` for each entry in ``qc_obs_feature_keys``.
-        When optional keys are provided, missing fields will still cause Vitessce
-        data loading/view rendering failures for the corresponding component.
     img_source
         Path/URL to the OME-Zarr image. Local paths are relative to ``base_dir``
         when provided.
@@ -926,40 +902,6 @@ def visium_hd_from_split_sources(
             raise ValueError("qc_obs_feature_keys cannot contain empty keys.")
         return normalized
 
-    if sdata is not None:
-        if img_layer is None:
-            raise ValueError("img_layer is required when sdata is provided.")
-        if table_layer is None:
-            raise ValueError("table_layer is required when sdata is provided.")
-        if img_source is not None:
-            logger.warning(
-                "Both sdata and img_source were provided; img_source is ignored and "
-                "image source is resolved from sdata.path/images/{}.",
-                img_layer,
-            )
-        if adata_source is not None:
-            logger.warning(
-                "Both sdata and adata_source were provided; adata_source is ignored and "
-                "table source is resolved from sdata.path/tables/{}.",
-                table_layer,
-            )
-        if base_dir is not None:
-            logger.warning(
-                "Both sdata and base_dir were provided; base_dir is ignored because "
-                "image/table sources are resolved from sdata.path."
-            )
-        if sdata.path is None:
-            raise ValueError(
-                "sdata.path is None. Provide a backed SpatialData object or pass img_source/adata_source directly."
-            )
-        img_source = Path(sdata.path) / "images" / img_layer
-        adata_source = Path(sdata.path) / "tables" / table_layer
-        base_dir = None
-    elif img_source is None or adata_source is None:
-        raise ValueError(
-            "Either provide sdata with img_layer and table_layer, or provide both img_source and adata_source."
-        )
-
     cluster_key = _normalize_optional_key(cluster_key, "cluster_key")
     embedding_key = _normalize_optional_key(embedding_key, "embedding_key")
     qc_obs_feature_keys = _normalize_qc_keys(qc_obs_feature_keys)
@@ -967,19 +909,6 @@ def visium_hd_from_split_sources(
     assert adata_source is not None
     img_source, is_img_remote = _normalize_path_or_url(img_source, "img_source")
     adata_source, is_adata_remote = _normalize_path_or_url(adata_source, "adata_source")
-
-    # resolve the transformation:
-    if sdata is not None:
-        if coordinate_transformations is None and microns_per_pixel is None:
-            logger.info(
-                "Both coordinate_transformations and microns_per_pixel is None. "
-                "Fetching coordinate transformation from the SpatialData object."
-            )
-            coordinate_transformations = _spatialdata_transformation_to_ngff(
-                sdata,
-                layer=img_layer,
-                to_coordinate_system=to_coordinate_system,
-            )
 
     image_coordinate_transformations = _resolve_image_coordinate_transformations(
         coordinate_transformations=coordinate_transformations,
