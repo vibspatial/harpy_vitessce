@@ -9,9 +9,9 @@
   <p>
     <a href="https://harpy-vitessce.readthedocs.io/en/latest/">Documentation</a>
     ·
-    <a href="#quick-start">Quick Start</a>
+    <a href="https://harpy-vitessce.readthedocs.io/en/latest/quickstart.html">Quick Start</a>
     ·
-    <a href="#tutorials">Tutorials</a>
+    <a href="https://harpy-vitessce.readthedocs.io/en/latest/tutorials/index.html">Tutorials</a>
   </p>
 </div>
 
