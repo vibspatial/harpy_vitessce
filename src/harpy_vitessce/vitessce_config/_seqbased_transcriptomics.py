@@ -679,7 +679,7 @@ def _add_raw_wrappers(
     return dataset, file_uuid
 
 
-def seqbased_transcriptomics_from_spatialdata(
+def seq_based_from_spatialdata(
     sdata_path: str | Path,
     img_layer: str,
     labels_layer: str,
@@ -710,10 +710,10 @@ def seqbased_transcriptomics_from_spatialdata(
 
     This mode renders bins through a segmentation layer (labels layer + table).
     For spot-based geometries (for example hexagonal bins), use
-    :func:`seqbased_transcriptomics_from_split_sources`.
+    :func:`seq_based_from_split_sources`.
 
     Note that this will only work if spots are square bins, because then they can be represented via a grid
-    of bin ID's (labels_layer). For hexagonal spots (e.g. Nova-ST, use :func:`harpy_vitessce.seqbased_transcriptomics_from_split_sources`), and specify the center of the hexagons via .obsm[spatial_key]
+    of bin ID's (labels_layer). For hexagonal spots (e.g. Nova-ST, use :func:`harpy_vitessce.seq_based_from_split_sources`), and specify the center of the hexagons via .obsm[spatial_key]
 
     Note that currently the SpatialDataWrapper in Vitessce does not support obs_feature_column_paths.
     So they are added using the AnnDataWrapper. Because obs_labels_path is currently ignored in AnnDataWrapper,
@@ -892,7 +892,7 @@ def seqbased_transcriptomics_from_spatialdata(
     return vc
 
 
-def seqbased_transcriptomics_from_split_sources(
+def seq_based_from_split_sources(
     img_source: str | Path,
     adata_source: str | Path,
     base_dir: str | Path | None = None,

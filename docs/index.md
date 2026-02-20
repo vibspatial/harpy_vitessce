@@ -22,8 +22,8 @@ Example visualization for Visium HD can be found
 ```{eval-rst}
 .. card:: Visium HD Tutorials
 
-    - :doc:`Minimal notebook <tutorials/visium_hd/visium_hd_spatialdata>`
-    - :doc:`End to end notebook <tutorials/visium_hd/visium_hd>`
+    - :doc:`Visualize as bins <tutorials/visium_hd/visium_hd_bins_from_spatialdata>`
+    - :doc:`Visualize as spots <tutorials/visium_hd/visium_hd_spots>`
 
 .. card:: Proteomics Usage
     :link: tutorials/proteomics/spatialdata_blobs

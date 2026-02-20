@@ -4,8 +4,8 @@ from . import data_utils, vitessce_config
 from .vitessce_config import (
     proteomics_from_spatialdata,
     proteomics_from_split_sources,
-    seqbased_transcriptomics_from_spatialdata,
-    seqbased_transcriptomics_from_split_sources,
+    seq_based_from_spatialdata,
+    seq_based_from_split_sources,
     single_channel_image,
 )
 
@@ -18,7 +18,7 @@ __all__ = [
     "proteomics",
     "proteomics_from_split_sources",
     "proteomics_from_spatialdata",
-    "seqbased_transcriptomics_from_spatialdata",
-    "seqbased_transcriptomics_from_split_sources",
+    "seq_based_from_spatialdata",
+    "seq_based_from_split_sources",
     "single_channel_image",
 ]
