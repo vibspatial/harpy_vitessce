@@ -15,6 +15,7 @@ MAX_INITIAL_CHANNELS = 6  # Viv currently supports at most 6 visible channels.
 # Seq-based transcriptomics (visium_hd) coordination identifiers.
 # These are scoped to seq-based configs and are not required by proteomics.
 OBS_TYPE_SPOT = "spot"
+OBS_TYPE_BIN = "bin"
 OBS_COLOR_CELL_SET_SELECTION = "cellSetSelection"
 OBS_COLOR_GENE_SELECTION = "geneSelection"
 

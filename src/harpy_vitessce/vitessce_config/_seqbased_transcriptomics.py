@@ -30,6 +30,7 @@ from harpy_vitessce.vitessce_config._constants import (
     LAYER_CONTROLLER_VIEW,
     OBS_COLOR_CELL_SET_SELECTION,
     OBS_COLOR_GENE_SELECTION,
+    OBS_TYPE_BIN,
     OBS_TYPE_SPOT,
     SPATIAL_VIEW,
 )
@@ -204,7 +205,7 @@ def visium_hd_from_spatialdata(
     sdata_path,  # TODO: change to spatialdata_source
     img_layer: str,
     table_layer: str,
-    shapes_layer: str,
+    labels_layer: str,
     name: str = "Visium HD",
     description: str = "Visium HD",
     schema_version: str = "1.0.18",
@@ -227,14 +228,8 @@ def visium_hd_from_spatialdata(
     emb_radius_mode: Literal["auto", "manual"] = "auto",
     emb_radius: int = 3,  # ignored if emb_radius_mode is "auto"
 ) -> VitessceConfig:
-    # first implement it for spots, then implement it for bins.
     """
     Build a Vitessce configuration for exploring Visium HD data.
-
-    # TODO: compare how this spot based implementations compares to bin implementation as proposed here
-    # (i.e. for visium work with bins instead of spots, for other seq transcriptomics
-    # this will not always work, because they are aranged in a hexagon).
-    https://github.com/vitessce/vitessce-python/blob/main/docs/notebooks/spatial_data_visium_hd.ipynb
 
     Parameters
     ----------
@@ -253,22 +248,6 @@ def visium_hd_from_spatialdata(
         and ``obs/{key}`` for each entry in ``qc_obs_feature_keys``.
         When optional keys are provided, missing fields will still cause Vitessce
         data loading/view rendering failures for the corresponding component.
-    img_source
-        Path/URL to the OME-Zarr image. Local paths are relative to ``base_dir``
-        when provided.
-        You can generate this image with
-        :func:`harpy_vitessce.data_utils.xarray_to_ome_zarr` or
-        :func:`harpy_vitessce.data_utils.array_to_ome_zarr`.
-        Ignored when ``sdata`` is provided.
-    adata_source
-        Path/URL to the AnnData ``.zarr``/``.h5ad`` source. Local paths are
-        relative to ``base_dir`` when provided.
-        Required field is ``obsm/{spatial_key}``.
-        Optional fields are ``obs/{cluster_key}``, ``obsm/{embedding_key}``,
-        and ``obs/{key}`` for each entry in ``qc_obs_feature_keys``.
-        When optional keys are provided, missing fields will still cause Vitessce
-        data loading/view rendering failures for the corresponding component.
-        Ignored when ``sdata`` is provided.
     name
         Dataset name shown in Vitessce.
     description
@@ -450,15 +429,21 @@ def visium_hd_from_spatialdata(
         spatial_target_x.set_value(center[0])
         spatial_target_y.set_value(center[1])
 
-    # Add expression data to the configuration:
+    table_path = f"tables/{table_layer}"
+
+    file_uuid = f"seqbased_{uuid.uuid4()}"
+
+    # Add expression data to the configuration.
+    # NOTE: for the spatialdatawrapper linking between labels layer and table happens via the instance key
+    # (with a fall back to the index of the AnnData table).
     expression_wrapper = SpatialDataWrapper(
         sdata_path=normalized_sdata_path,
         # The following paths are relative to the root of the SpatialData zarr store on-disk.
         image_path=f"images/{img_layer}",
-        table_path=f"tables/{table_layer}",
-        obs_feature_matrix_path=f"tables/{table_layer}/X",
-        obs_spots_path=f"shapes/{shapes_layer}",
-        obs_set_paths=[f"tables/{table_layer}/obs/{cluster_key}"]
+        table_path=table_path,
+        obs_feature_matrix_path=f"{table_path}/X",
+        obs_segmentations_path=f"labels/{labels_layer}",
+        obs_set_paths=[f"{table_path}/obs/{cluster_key}"]
         if cluster_key is not None
         else None,
         obs_set_names=[cluster_key_display_name] if cluster_key is not None else None,
@@ -470,39 +455,42 @@ def visium_hd_from_spatialdata(
         ]  # embedding_display_name should be renamed to embedding_key_display_name
         if embedding_key is not None
         else None,
-        region=shapes_layer,
+        region=labels_layer,
         coordinate_system=to_coordinate_system,
         coordination_values={
-            # The following tells Vitessce to consider each observation as a "spot"
-            "obsType": OBS_TYPE_SPOT,
+            # The following tells Vitessce to consider each observation as a "bin"
+            "obsType": OBS_TYPE_BIN,
             "featureType": FEATURE_TYPE_GENE,
             "featureValueType": FEATURE_VALUE_TYPE_EXPRESSION,
-            "fileUid": "test",
+            "fileUid": file_uuid,
         },
     )
     dataset = vc.add_dataset(name=name).add_object(expression_wrapper)
 
     if has_qc:
-        # Add qc data to the configuration:
-        qc_wrapper = SpatialDataWrapper(
-            sdata_path=normalized_sdata_path,  # TODO need to fix the stuff with the store/url
-            # The following paths are relative to the root of the SpatialData zarr store on-disk.
-            image_path=f"images/{img_layer}",
-            table_path=f"tables/{table_layer}",
-            obs_feature_matrix_path=None,
-            obs_feature_column_paths=[f"obs/{key}" for key in qc_obs_feature_keys],
-            obs_spots_path=f"shapes/{shapes_layer}",
-            # region="CytAssist_FFPE_Human_Breast_Cancer",
-            coordinate_system=to_coordinate_system,
-            coordination_values={
-                # The following tells Vitessce to consider each observation as a "spot"
-                "obsType": OBS_TYPE_SPOT,
+        # SpatialDataWrapper currently does not expose obs_feature_column_paths
+        # in its file definition, so use an AnnDataWrapper for table-level QC columns.
+        # NOTE!!! for this to work, it requires that the index of the AnnData matches the ID's in the labels layer.
+        qc_table_source = (
+            f"{normalized_sdata_path.rstrip('/')}/{table_path}"
+            if is_sdata_remote
+            else str(Path(normalized_sdata_path) / table_path)
+        )
+        qc_wrapper_kwargs: dict[str, object] = {
+            "obs_feature_matrix_path": None,
+            "obs_feature_column_paths": [f"obs/{key}" for key in qc_obs_feature_keys],
+            "coordination_values": {
+                # The following tells Vitessce to consider each observation as a "bin"
+                "obsType": OBS_TYPE_BIN,  # TODO: move to constants of harpy_vitessce
                 "featureType": FEATURE_TYPE_QC,
                 "featureValueType": FEATURE_VALUE_TYPE_QC,
-                "fileUid": "test",
+                "fileUid": file_uuid,
             },
+        }
+        qc_wrapper_kwargs["adata_url" if is_sdata_remote else "adata_path"] = (
+            qc_table_source
         )
-        dataset.add_object(qc_wrapper)
+        dataset.add_object(AnnDataWrapper(**qc_wrapper_kwargs))
 
     # 1) create views:
     # i) gene expression (+ optional clusters / embedding)
@@ -545,7 +533,7 @@ def visium_hd_from_spatialdata(
             ct.OBS_SET_SELECTION,
         )
     )
-    obs_type.set_value(OBS_TYPE_SPOT)
+    obs_type.set_value(OBS_TYPE_BIN)
     feat_type.set_value(
         FEATURE_TYPE_GENE
     )  # defined in coordination_values when we add addata
@@ -630,14 +618,14 @@ def visium_hd_from_spatialdata(
             # obs_set_sel_qc # this does not work -> lasso on the qc is not passed to qc
         )
 
-    # note that it is also possible to create two spotlayers, one for qc, one for clusters+genes
+    # note that it is also possible to create two seqmentation layers, one for qc, one for clusters+genes
     # but then we need two layer controllers, which looks kinda weird in the UI
     linked_views = [spatial_plot, layer_controller]
     if spatial_qc is not None:
         linked_views.append(spatial_qc)
 
     image_layer = build_image_layer_config(
-        file_uid="test",
+        file_uid=file_uuid,
         channels=channels,
         palette=palette,
         visualize_as_rgb=visualize_as_rgb,
@@ -647,8 +635,52 @@ def visium_hd_from_spatialdata(
         linked_views,
         {
             "imageLayer": CL([image_layer]),
+            "segmentationLayer": CL(
+                [
+                    {
+                        "fileUid": file_uuid,
+                        "segmentationChannel": CL(
+                            [
+                                {
+                                    "obsType": OBS_TYPE_BIN,
+                                    "spatialChannelOpacity": 0.5,
+                                    # "obsColorEncoding": obs_color,
+                                    # "featureValueColormapRange": [0, 0.5],
+                                }
+                            ]
+                        ),
+                    }
+                ]
+            ),
         },
     )
+
+    # could also work with adding this, but then we require a layer_controller for qc.
+    """
+    vc.link_views_by_dict(
+        [spatial_qc, layer_controller],
+        {
+            "imageLayer": CL([image_layer]),
+            "segmentationLayer": CL(
+                [
+                    {
+                        "fileUid": "test",
+                        "segmentationChannel": CL(
+                            [
+                                {
+                                    "spatialChannelOpacity": 0.5,
+                                    "obsColorEncoding": obs_color_qc,
+                                    "featureValueColormapRange": [0, 0.5],
+                                }
+                            ]
+                        ),
+                    }
+                ]
+            ),
+        },
+    )
+    """
+
     layer_controller.set_props(disableChannelsIfRgbDetected=visualize_as_rgb)
 
     main_column = (
@@ -700,7 +732,7 @@ def visium_hd_from_spatialdata(
     return vc
 
 
-def visium_hd(
+def visium_hd_from_split_sources(
     sdata: SpatialData | None = None,
     img_layer: str | None = None,
     table_layer: str | None = None,
@@ -737,11 +769,6 @@ def visium_hd(
 ) -> VitessceConfig:
     """
     Build a Vitessce configuration for exploring Visium HD data.
-
-    # TODO: compare how this spot based implementations compares to bin implementation as proposed here
-    # (i.e. for visium work with bins instead of spots, for other seq transcriptomics
-    # this will not always work, because they are aranged in a hexagon).
-    https://github.com/vitessce/vitessce-python/blob/main/docs/notebooks/spatial_data_visium_hd.ipynb
 
     Parameters
     ----------

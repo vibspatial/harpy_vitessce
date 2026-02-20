@@ -424,7 +424,7 @@ def _add_raw_wrappers(
     embedding_key: str | None,
     embedding_key_display_name: str,
 ) -> _ProteomicsDatasetContext:
-    file_uuid = f"img_macsima_{uuid.uuid4()}"
+    file_uuid = f"img_proteomics_{uuid.uuid4()}"
     img_wrapper_kwargs: dict[str, object] = {
         "coordination_values": {"fileUid": file_uuid},
     }
@@ -440,7 +440,7 @@ def _add_raw_wrappers(
 
     labels_file_uuid: str | None = None
     if labels_source is not None:
-        labels_file_uuid = f"seg_macsima_{uuid.uuid4()}"
+        labels_file_uuid = f"seg_proteomics_{uuid.uuid4()}"
         seg_wrapper_kwargs: dict[str, object] = {
             "coordination_values": {"fileUid": labels_file_uuid},
         }
