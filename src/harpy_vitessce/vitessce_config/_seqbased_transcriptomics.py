@@ -228,6 +228,12 @@ def visium_hd_from_spatialdata(
 ) -> VitessceConfig:
     """
     Build a Vitessce configuration for exploring Visium HD data.
+    Note that this will only work if spots are square bins, because then they can be represented via a grid
+    of bin ID's (labels_layer). For hexagonal spots (e.g. Nova-ST, use visium_hd_from_split_sources), and specify the center of the hexagons via .obsm[spatial_key]
+
+    Note that currently the SpatialDataWrapper in Vitessce does not support obs_feature_column_paths.
+    So they are added using the AnnDataWrapper. Because obs_labels_path is ignored in AnnDataWrapper,
+    the index of the table needs to match the ID in the labels layer.
 
     Parameters
     ----------
@@ -759,7 +765,8 @@ def visium_hd_from_split_sources(
 ) -> VitessceConfig:
     """
     Build a Vitessce configuration for exploring Visium HD data.
-    This functions uses the SpatialDataWrapper.
+    This functions uses AnnDataWrapper, and looks at .obsm[spatial_key] in the adata_source,
+    and then uses a Spotlayer to visualize them.
 
     Parameters
     ----------
@@ -778,7 +785,6 @@ def visium_hd_from_split_sources(
         and ``obs/{key}`` for each entry in ``qc_obs_feature_keys``.
         When optional keys are provided, missing fields will still cause Vitessce
         data loading/view rendering failures for the corresponding component.
-        Ignored when ``sdata`` is provided.
     name
         Dataset name shown in Vitessce.
     description
