@@ -216,7 +216,7 @@ class _SeqBasedViews:
     spatial_plot: Any
     layer_controller: Any
     genes: Any
-    cell_sets: Any | None
+    cell_sets: Any
     umap: Any | None
     histogram: Any | None
     spatial_qc: Any | None
@@ -290,17 +290,12 @@ def _apply_seqbased_layout(
     control_views = [views.layer_controller, views.genes]
     if views.qc_list is not None:
         control_views.append(views.qc_list)
-    if views.cell_sets is not None:
-        control_views.append(views.cell_sets)
+    control_views.append(views.cell_sets)
 
-    if modes.has_qc and modes.has_clusters:
+    if modes.has_qc:
         control_split = [3, 4, 3, 2]
-    elif modes.has_qc:
-        control_split = [3, 5, 4]
-    elif modes.has_clusters:
-        control_split = [3, 6, 3]
     else:
-        control_split = [3, 9]
+        control_split = [3, 6, 3]
     control_column = vconcat(*control_views, split=control_split)
 
     if views.spatial_qc is not None and views.histogram is not None:
@@ -364,9 +359,7 @@ def _build_seqbased_visualization(
         spatial_plot=spatial_plot,
         layer_controller=vc.add_view(LAYER_CONTROLLER_VIEW, dataset=dataset),
         genes=vc.add_view(cm.FEATURE_LIST, dataset=dataset),
-        cell_sets=vc.add_view(cm.OBS_SETS, dataset=dataset)
-        if modes.has_clusters
-        else None,
+        cell_sets=vc.add_view(cm.OBS_SETS, dataset=dataset),
         umap=vc.add_view(
             cm.SCATTERPLOT,
             dataset=dataset,
@@ -444,8 +437,7 @@ def _build_seqbased_visualization(
         feat_type,
         feat_val_type,
     )
-    if views.cell_sets is not None:
-        views.cell_sets.use_coordination(obs_type, obs_set_sel, obs_color)
+    views.cell_sets.use_coordination(obs_type, obs_set_sel, obs_color)
     if (
         views.umap is not None
         and emb_radius_mode_coord is not None

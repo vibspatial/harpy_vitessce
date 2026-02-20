@@ -194,16 +194,15 @@ def _build_shared_visualization(
         if modes.has_feature_matrix
         else None
     )
-    heatmap = (
-        vc.add_view(cm.HEATMAP, dataset=dataset)
-        if modes.has_heatmap
-        else None
-    )
+    heatmap = vc.add_view(cm.HEATMAP, dataset=dataset) if modes.has_heatmap else None
+    """
     obs_sets = (
         vc.add_view(cm.OBS_SETS, dataset=dataset)
         if modes.has_clusters
         else None
     )
+    """
+    obs_sets = vc.add_view(cm.OBS_SETS, dataset=dataset)
     umap = (
         vc.add_view(
             cm.SCATTERPLOT,
@@ -274,6 +273,7 @@ def _build_shared_visualization(
                 feat_type,
                 feat_val_type,
                 feat_sel,
+                obs_color,
                 obs_set_sel,
             )
         if views.umap is not None:
@@ -286,18 +286,35 @@ def _build_shared_visualization(
                 obs_set_sel,
             )
     elif modes.has_matrix_data:
-        obs_type, feat_type, feat_val_type, obs_color, feat_sel = vc.add_coordination(
+        (
+            obs_type,
+            feat_type,
+            feat_val_type,
+            obs_color,
+            feat_sel,
+            obs_set_sel,
+        ) = vc.add_coordination(
             ct.OBS_TYPE,
             ct.FEATURE_TYPE,
             ct.FEATURE_VALUE_TYPE,
             ct.OBS_COLOR_ENCODING,
             ct.FEATURE_SELECTION,
+            ct.OBS_SET_SELECTION,
         )
+
+        # obs_type, feat_type, feat_val_type, obs_color, feat_sel = vc.add_coordination(
+        #    ct.OBS_TYPE,
+        #    ct.FEATURE_TYPE,
+        #    ct.FEATURE_VALUE_TYPE,
+        #    ct.OBS_COLOR_ENCODING,
+        #    ct.FEATURE_SELECTION,
+        # )
         obs_type.set_value(OBS_TYPE_CELL)
         feat_type.set_value(FEATURE_TYPE_MARKER)
         feat_val_type.set_value(FEATURE_VALUE_TYPE_INTENSITY)
         obs_color.set_value(OBS_COLOR_GENE_SELECTION)
         feat_sel.set_value(None)
+        obs_set_sel.set_value(None)
 
         views.spatial_plot.use_coordination(
             obs_type,
@@ -305,6 +322,7 @@ def _build_shared_visualization(
             feat_val_type,
             obs_color,
             feat_sel,
+            obs_set_sel,
         )
         if views.feature_list is not None:
             views.feature_list.use_coordination(
@@ -314,8 +332,17 @@ def _build_shared_visualization(
                 feat_type,
                 feat_val_type,
             )
+        if views.obs_sets is not None:
+            views.obs_sets.use_coordination(obs_type, obs_set_sel, obs_color)
         if views.heatmap is not None:
-            views.heatmap.use_coordination(obs_type, feat_type, feat_val_type, feat_sel)
+            views.heatmap.use_coordination(
+                obs_type,
+                feat_type,
+                feat_val_type,
+                feat_sel,
+                obs_color,
+                obs_set_sel,
+            )
         if views.umap is not None:
             views.umap.use_coordination(
                 obs_type,
@@ -323,7 +350,9 @@ def _build_shared_visualization(
                 feat_val_type,
                 obs_color,
                 feat_sel,
+                obs_set_sel,
             )
+
     elif modes.has_clusters:
         obs_type, obs_color, obs_set_sel = vc.add_coordination(
             ct.OBS_TYPE,
