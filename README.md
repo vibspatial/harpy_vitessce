@@ -25,9 +25,9 @@ For more information on Harpy, see the
 
 ## Why Use Harpy-Vitessce?
 
-- Build Vitessce configs directly from `SpatialData` or split sources
+- Build Vitessce configs directly from `SpatialData` or from seperate files on disk.
 - Get ready-to-share, interactive visualizations for transcriptomics and proteomics
-- Use sensible defaults while keeping full control over layout and rendering options
+- Use sensible defaults while keeping control over layout and rendering options
 
 ## Installation (`uv`)
 
@@ -47,19 +47,7 @@ uv add "harpy-vitessce[vitessce] @ git+https://github.com/vibspatial/harpy_vites
 
 ## Quick Start
 
-```python
-import harpy_vitessce as hpv
-
-vc = hpv.seq_based_from_spatialdata(
-    sdata_path="path/to/sdata.zarr",
-    img_layer="your_image_layer",
-    labels_layer="your_labels_layer",
-    table_layer="your_table_layer",
-)
-
-url = vc.web_app()
-print(url)  # Open this URL to explore your dataset in Vitessce
-```
+The full quick-start guide lives in [`docs/quickstart.md`](./docs/quickstart.md).
 
 ## Tutorials
 

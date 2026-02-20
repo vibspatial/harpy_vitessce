@@ -20,6 +20,12 @@ Example visualization for Visium HD can be found
 [here](https://vib-data-core.github.io/vitessce/?url=spatial-hackathon-public/sparrow/public_datasets/transcriptomics/visium_hd/config_visium_hd_benchmark_s3_10_2_26.json).
 
 ```{eval-rst}
+.. card:: Quick Start
+    :link: quickstart
+    :link-type: doc
+
+    Get up and running with a minimal end-to-end example.
+
 .. card:: Visium HD Tutorials
 
     - :doc:`Visualize as bins <tutorials/visium_hd/visium_hd_bins_from_spatialdata>`
@@ -42,5 +48,6 @@ Example visualization for Visium HD can be found
 :hidden: true
 :maxdepth: 1
 
+quickstart
 tutorials/index
 ```
