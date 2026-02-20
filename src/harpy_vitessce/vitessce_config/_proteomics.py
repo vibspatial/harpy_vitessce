@@ -33,7 +33,10 @@ from harpy_vitessce.vitessce_config._image import (
     _resolve_image_coordinate_transformations,
     build_image_layer_config,
 )
-from harpy_vitessce.vitessce_config._utils import _normalize_path_or_url
+from harpy_vitessce.vitessce_config._utils import (
+    _normalize_path_or_url,
+    _validate_camera,
+)
 
 OBS_TYPE_CELL = "cell"
 FEATURE_TYPE_MARKER = "marker"
@@ -52,6 +55,7 @@ class _ProteomicsModes:
     needs_adata: bool
 
 
+# TODO -> this is overengineered, remove it.
 @dataclass(frozen=True)
 class _ProteomicsDatasetContext:
     dataset: Any
@@ -109,21 +113,6 @@ def _validate_annotation_keys(
     if embedding_key is not None and not embedding_key_display_name:
         raise ValueError(
             "embedding_key_display_name must be non-empty when embedding_key is provided."
-        )
-
-
-def _validate_camera(*, center: tuple[float, float] | None, zoom: float | None) -> None:
-    if center is not None and len(center) != 2:
-        raise ValueError("center must be a tuple of two floats: (x, y).")
-    if zoom is not None and center is None:
-        logger.warning(
-            "zoom was provided without center. Vitessce ignores zoom unless "
-            "center is also set."
-        )
-    if center is not None and zoom is None:
-        logger.warning(
-            "center was provided without zoom. Vitessce ignores center unless "
-            "zoom is also set."
         )
 
 
