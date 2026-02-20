@@ -562,7 +562,7 @@ def _add_spatialdata_wrappers(
     table_path = f"tables/{table_layer}"
     file_uuid = f"seqbased_{uuid.uuid4()}"
     expression_wrapper = SpatialDataWrapper(
-        sdata_path=sdata_path,
+        sdata_path=sdata_path,  # need to fix the stuff with the spatialdata URL here.
         image_path=f"images/{img_layer}",
         table_path=table_path,
         obs_feature_matrix_path=f"{table_path}/X",
