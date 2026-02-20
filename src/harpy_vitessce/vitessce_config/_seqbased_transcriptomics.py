@@ -447,7 +447,7 @@ def visium_hd_from_spatialdata(
         if cluster_key is not None
         else None,
         obs_set_names=[cluster_key_display_name] if cluster_key is not None else None,
-        obs_embedding_paths=[f"obsm/{embedding_key}"]
+        obs_embedding_paths=[f"{table_path}/obsm/{embedding_key}"]
         if embedding_key is not None
         else None,
         obs_embedding_names=[
