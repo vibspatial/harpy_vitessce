@@ -713,11 +713,11 @@ def seqbased_transcriptomics_from_spatialdata(
     :func:`seqbased_transcriptomics_from_split_sources`.
 
     Note that this will only work if spots are square bins, because then they can be represented via a grid
-    of bin ID's (labels_layer). For hexagonal spots (e.g. Nova-ST, use visium_hd_from_split_sources), and specify the center of the hexagons via .obsm[spatial_key]
+    of bin ID's (labels_layer). For hexagonal spots (e.g. Nova-ST, use :func:`harpy_vitessce.seqbased_transcriptomics_from_split_sources`), and specify the center of the hexagons via .obsm[spatial_key]
 
     Note that currently the SpatialDataWrapper in Vitessce does not support obs_feature_column_paths.
     So they are added using the AnnDataWrapper. Because obs_labels_path is currently ignored in AnnDataWrapper,
-    the index of the table needs to match the ID in the labels layer.
+    the index of the table needs to match the instance IDs in the labels layer.
 
     Parameters
     ----------
