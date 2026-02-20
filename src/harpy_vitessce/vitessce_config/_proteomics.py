@@ -202,7 +202,7 @@ def _build_shared_visualization(
         else None
     )
     """
-    obs_sets = vc.add_view(cm.OBS_SETS, dataset=dataset)
+    obs_sets = vc.add_view(cm.OBS_SETS, dataset=dataset) # we choose to always show obs selection (e.g. if user wants to annotate cells)
     umap = (
         vc.add_view(
             cm.SCATTERPLOT,
@@ -498,6 +498,7 @@ def _add_spatialdata_wrapper(
     *,
     name: str,
     sdata_path: str,
+    is_sdata_remote: bool,
     img_layer: str,
     labels_layer: str | None,
     table_layer: str | None,
@@ -508,7 +509,7 @@ def _add_spatialdata_wrapper(
     embedding_key: str | None,
     embedding_key_display_name: str,
 ) -> tuple[VitessceConfigDataset, str, str | None]:
-    file_uuid = f"sdata_macsima_{uuid.uuid4()}"
+    file_uuid = f"sdata_{uuid.uuid4()}"
     labels_file_uuid: str | None = file_uuid if labels_layer is not None else None
 
     table_prefix = f"tables/{table_layer}" if table_layer is not None else None
@@ -525,34 +526,43 @@ def _add_spatialdata_wrapper(
             }
         )
 
-    wrapper = SpatialDataWrapper(
-        sdata_path=sdata_path,
-        table_path=table_prefix,
-        image_path=f"images/{img_layer}",
-        obs_segmentations_path=f"labels/{labels_layer}"
-        if labels_layer is not None
-        else None,
-        obs_feature_matrix_path=f"{table_prefix}/X"
-        if (modes.has_matrix_data and table_prefix is not None)
-        else None,
-        obs_set_paths=[f"{table_prefix}/obs/{cluster_key}"]
-        if (modes.has_clusters and table_prefix is not None and cluster_key is not None)
-        else None,
-        obs_set_names=[cluster_key_display_name] if modes.has_clusters else None,
-        region=labels_layer,
-        obs_embedding_paths=[f"{table_prefix}/obsm/{embedding_key}"]
-        if (
-            modes.has_embedding
-            and table_prefix is not None
-            and embedding_key is not None
-        )
-        else None,
-        obs_embedding_names=[embedding_key_display_name]
+    spatialdata_wrapper_kwargs: dict[str, object] = {
+        "table_path": table_prefix,
+        "image_path": f"images/{img_layer}",
+        "obs_segmentations_path": (
+            f"labels/{labels_layer}" if labels_layer is not None else None
+        ),
+        "obs_feature_matrix_path": (
+            f"{table_prefix}/X"
+            if (modes.has_matrix_data and table_prefix is not None)
+            else None
+        ),
+        "obs_set_paths": (
+            [f"{table_prefix}/obs/{cluster_key}"]
+            if (modes.has_clusters and table_prefix is not None and cluster_key is not None)
+            else None
+        ),
+        "obs_set_names": [cluster_key_display_name] if modes.has_clusters else None,
+        "region": labels_layer,
+        "obs_embedding_paths": (
+            [f"{table_prefix}/obsm/{embedding_key}"]
+            if (
+                modes.has_embedding
+                and table_prefix is not None
+                and embedding_key is not None
+            )
+            else None
+        ),
+        "obs_embedding_names": [embedding_key_display_name]
         if modes.has_embedding
         else None,
-        coordinate_system=to_coordinate_system,
-        coordination_values=file_coordination_values,
+        "coordinate_system": to_coordinate_system,
+        "coordination_values": file_coordination_values,
+    }
+    spatialdata_wrapper_kwargs["sdata_url" if is_sdata_remote else "sdata_path"] = (
+        sdata_path
     )
+    wrapper = SpatialDataWrapper(**spatialdata_wrapper_kwargs)
 
     dataset = vc.add_dataset(name=name).add_object(wrapper)
     return dataset, file_uuid, labels_file_uuid
@@ -564,8 +574,8 @@ def proteomics_from_spatialdata(
     labels_layer: str | None = None,
     table_layer: str | None = None,
     base_dir: str | Path | None = None,
-    name: str = "MACSima",
-    description: str = "MACSima",
+    name: str = "Proteomics",
+    description: str = "Proteomics",
     schema_version: str = "1.0.18",
     center: tuple[float, float] | None = None,
     zoom: float | None = -4,
@@ -707,6 +717,7 @@ def proteomics_from_spatialdata(
         "sdata_path",
     )
     vc = VitessceConfig(
+        name = name,
         schema_version=schema_version,
         description=description,
         base_dir=(
@@ -720,6 +731,7 @@ def proteomics_from_spatialdata(
         vc,
         name=name,
         sdata_path=normalized_sdata_path,
+        is_sdata_remote=is_sdata_remote,
         img_layer=img_layer,
         labels_layer=labels_layer,
         table_layer=table_layer,
@@ -752,8 +764,8 @@ def proteomics_from_split_sources(
     labels_source: str | Path | None = None,
     adata_source: str | Path | None = None,
     base_dir: str | Path | None = None,
-    name: str = "MACSima",
-    description: str = "MACSima",
+    name: str = "Proteomics",
+    description: str = "Proteomics",
     schema_version: str = "1.0.18",
     center: tuple[float, float] | None = None,
     zoom: float | None = -4,
