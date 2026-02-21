@@ -14,8 +14,6 @@ if TYPE_CHECKING:
         single_channel_image,
     )
 
-    proteomics = proteomics_from_spatialdata
-
 _lazy_getattr, _lazy_dir, _ = lazy.attach(
     __name__,
     submodules=["data_utils", "vitessce_config"],
@@ -32,18 +30,15 @@ _lazy_getattr, _lazy_dir, _ = lazy.attach(
 
 
 def __getattr__(name: str):
-    if name == "proteomics":
-        return _lazy_getattr("proteomics_from_spatialdata")
     return _lazy_getattr(name)
 
 
 def __dir__():
-    return sorted(set(list(_lazy_dir()) + ["proteomics"]))
+    return _lazy_dir()
 
 __all__ = [
     "data_utils",
     "vitessce_config",
-    "proteomics",
     "proteomics_from_split_sources",
     "proteomics_from_spatialdata",
     "seq_based_from_spatialdata",
