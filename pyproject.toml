@@ -12,6 +12,7 @@ dependencies = [
     "setuptools<82",
     "harpy-analysis",
     "loguru",
+    "lazy-loader>=0.4",
 ]
 
 [project.optional-dependencies]

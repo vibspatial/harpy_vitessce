@@ -137,6 +137,7 @@ def single_channel_image(
         )
 
     vc = VitessceConfig(
+        name=name,
         schema_version=schema_version,
         description=description,
         # base_dir only applies to local *_path entries.
@@ -554,29 +555,32 @@ def _add_spatialdata_wrappers(
 ) -> tuple[VitessceConfigDataset, str]:
     table_path = f"tables/{table_layer}"
     file_uuid = f"seqbased_{uuid.uuid4()}"
-    expression_wrapper = SpatialDataWrapper(
-        sdata_path=sdata_path,  # need to fix the stuff with the spatialdata URL here.
-        image_path=f"images/{img_layer}",
-        table_path=table_path,
-        obs_feature_matrix_path=f"{table_path}/X",
-        obs_segmentations_path=f"labels/{labels_layer}",
-        obs_set_paths=[f"{table_path}/obs/{cluster_key}"]
+    expression_wrapper_kwargs: dict[str, object] = {
+        "image_path": f"images/{img_layer}",
+        "table_path": table_path,
+        "obs_feature_matrix_path": f"{table_path}/X",
+        "obs_segmentations_path": f"labels/{labels_layer}",
+        "obs_set_paths": [f"{table_path}/obs/{cluster_key}"]
         if modes.has_clusters
         else None,
-        obs_set_names=[cluster_key_display_name] if modes.has_clusters else None,
-        obs_embedding_paths=[f"{table_path}/obsm/{embedding_key}"]
+        "obs_set_names": [cluster_key_display_name] if modes.has_clusters else None,
+        "obs_embedding_paths": [f"{table_path}/obsm/{embedding_key}"]
         if modes.has_embedding
         else None,
-        obs_embedding_names=[embedding_display_name] if modes.has_embedding else None,
-        region=labels_layer,
-        coordinate_system=to_coordinate_system,
-        coordination_values={
+        "obs_embedding_names": [embedding_display_name] if modes.has_embedding else None,
+        "region": labels_layer,
+        "coordinate_system": to_coordinate_system,
+        "coordination_values": {
             "obsType": OBS_TYPE_BIN,
             "featureType": FEATURE_TYPE_GENE,
             "featureValueType": FEATURE_VALUE_TYPE_EXPRESSION,
             "fileUid": file_uuid,
         },
+    }
+    expression_wrapper_kwargs["sdata_url" if is_sdata_remote else "sdata_path"] = (
+        sdata_path
     )
+    expression_wrapper = SpatialDataWrapper(**expression_wrapper_kwargs)
     dataset = vc.add_dataset(name=name).add_object(expression_wrapper)
 
     if modes.has_qc:
@@ -838,6 +842,7 @@ def seq_based_from_spatialdata(
     )
     vc = VitessceConfig(
         schema_version=schema_version,
+        name = name,
         description=description,
         base_dir=(
             None
@@ -1053,6 +1058,7 @@ def seq_based_from_split_sources(
     )
 
     vc = VitessceConfig(
+        name=name,
         schema_version=schema_version,
         description=description,
         base_dir=(
