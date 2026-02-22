@@ -60,7 +60,10 @@ The full quick-start guide lives in [`docs/quickstart.md`](./docs/quickstart.md)
 Example Visium HD visualization:
 [Open in Vitessce](https://vib-data-core.github.io/vitessce/?url=spatial-hackathon-public/sparrow/public_datasets/transcriptomics/visium_hd/config_visium_hd_benchmark_s3_10_2_26.json)
 
-Example Proteomics visualization:
+Example proteomics (CODEX) visualization:
+[Open in Vitessce](https://vib-data-core.github.io/vitessce/?url=spatial-hackathon-public/sparrow/public_datasets/proteomics/codex/chl_maps_dataset_vitessce/codex.json)
+
+Example proteomics visualization (dummy dataset):
 [Open in Vitessce](https://vib-data-core.github.io/vitessce/?url=spatial-hackathon-public/sparrow/public_datasets/proteomics/spatialdata_blobs/spatialdata_blobs_remote.json)
 
 ## Disclaimer
