@@ -784,7 +784,7 @@ def proteomics_from_spatialdata(
     channels: Sequence[int | str] | None = None,
     palette: Sequence[str] | None = None,
     layer_opacity: float = 1.0,
-    segmentation_color: str | None = "#00E5A8",
+    segmentation_color: str | None = None,
     segmentation_filled: bool = True,
     segmentation_stroke_width: float = 1.0,
     to_coordinate_system: str = "global",
@@ -847,6 +847,7 @@ def proteomics_from_spatialdata(
     segmentation_color
         Optional fixed color for segmentation outlines as ``"#RRGGBB"``.
         If provided, this overrides coordination-driven segmentation coloring.
+        A good preset for multiplex images is ``"#00E5A8"``.
     segmentation_filled
         Whether segmentation shapes are filled.
     segmentation_stroke_width
@@ -994,7 +995,7 @@ def proteomics_from_split_sources(
     channels: Sequence[int | str] | None = None,
     palette: Sequence[str] | None = None,
     layer_opacity: float = 1.0,
-    segmentation_color: str | None = "#00E5A8",
+    segmentation_color: str | None = None,
     segmentation_filled: bool = True,
     segmentation_stroke_width: float = 1.0,
     microns_per_pixel_image: float | tuple[float, float] | None = None,
@@ -1053,6 +1054,7 @@ def proteomics_from_split_sources(
     segmentation_color
         Optional fixed color for segmentation outlines as ``"#RRGGBB"``.
         If provided, this overrides coordination-driven segmentation coloring.
+        A good preset for multiplex images is ``"#00E5A8"``.
     segmentation_filled
         Whether segmentation shapes are filled.
     segmentation_stroke_width
