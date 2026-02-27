@@ -54,11 +54,13 @@ class _ProteomicsModes:
     has_clusters: bool
     has_embedding: bool
     needs_adata: bool
+    adata_as_spots: bool
 
 
 @dataclass(frozen=True)
 class _ProteomicsViews:
-    spatial_plot: Any
+    spatial_plot: Any | None
+    spatial_plot_spots: Any | None
     layer_controller: Any
     feature_list: Any | None
     heatmap: Any | None
@@ -72,19 +74,22 @@ def _compute_modes(
     visualize_heatmap: bool,
     cluster_key: str | None,
     embedding_key: str | None,
+    adata_as_spots: bool,
 ) -> _ProteomicsModes:
     has_feature_matrix = visualize_feature_matrix
     has_heatmap = visualize_heatmap
     has_matrix_data = has_feature_matrix or has_heatmap
     has_clusters = cluster_key is not None
     has_embedding = embedding_key is not None
+    needs_adata = has_matrix_data or has_clusters or has_embedding
     return _ProteomicsModes(
         has_feature_matrix=has_feature_matrix,
         has_heatmap=has_heatmap,
         has_matrix_data=has_matrix_data,
         has_clusters=has_clusters,
         has_embedding=has_embedding,
-        needs_adata=(has_matrix_data or has_clusters or has_embedding),
+        needs_adata=needs_adata,
+        adata_as_spots=adata_as_spots and needs_adata,
     )
 
 
@@ -112,6 +117,30 @@ def _validate_annotation_keys(
 def _validate_layer_opacity(layer_opacity: float) -> None:
     if not 0.0 <= layer_opacity <= 1.0:
         raise ValueError("layer_opacity must be between 0.0 and 1.0.")
+
+
+def _validate_segmentation_style(
+    *,
+    segmentation_color: str | None,
+    segmentation_stroke_width: float,
+) -> list[int] | None:
+    if segmentation_stroke_width < 0:
+        raise ValueError("segmentation_stroke_width must be >= 0.")
+    if segmentation_color is None:
+        return None
+    color = segmentation_color.strip()
+    if color.startswith("#"):
+        color = color[1:]
+    if len(color) != 6:
+        raise ValueError(
+            "segmentation_color hex string must have 6 digits, e.g. '#FFAA00'."
+        )
+    try:
+        return [int(color[i : i + 2], 16) for i in range(0, 6, 2)]
+    except ValueError as exc:
+        raise ValueError(
+            "segmentation_color hex string must contain only 0-9 or A-F."
+        ) from exc
 
 
 def _apply_layout(vc: VitessceConfig, *, views: _ProteomicsViews) -> None:
@@ -162,6 +191,66 @@ def _apply_layout(vc: VitessceConfig, *, views: _ProteomicsViews) -> None:
     vc.layout(hconcat(views.spatial_plot, middle_column, right_column, split=[6, 3, 3]))
 
 
+def _apply_layout_spots(vc: VitessceConfig, *, views: _ProteomicsViews) -> None:
+    views.layer_controller.set_props(disableChannelsIfRgbDetected=False)
+
+    spatial_columns: list[Any] = []
+    if views.spatial_plot is not None:
+        left_column = (
+            vconcat(views.spatial_plot, views.umap, split=[8, 4])
+            if views.umap is not None
+            else views.spatial_plot
+        )
+        spatial_columns.append(left_column)
+
+    if views.spatial_plot_spots is not None:
+        if views.spatial_plot is None:
+            bottom_views = []
+            if views.umap is not None:
+                bottom_views.append(views.umap)
+            if views.heatmap is not None:
+                bottom_views.append(views.heatmap)
+        else:
+            bottom_views = [views.heatmap] if views.heatmap is not None else []
+
+        if len(bottom_views) == 0:
+            right_column = views.spatial_plot_spots
+        elif len(bottom_views) == 1:
+            right_column = vconcat(
+                views.spatial_plot_spots, bottom_views[0], split=[8, 4]
+            )
+        else:
+            right_column = vconcat(
+                views.spatial_plot_spots,
+                bottom_views[0],
+                bottom_views[1],
+                split=[6, 3, 3],
+            )
+        spatial_columns.append(right_column)
+
+    if len(spatial_columns) == 2:
+        spatial_block = hconcat(spatial_columns[0], spatial_columns[1], split=[6, 6])
+    elif len(spatial_columns) == 1:
+        spatial_block = spatial_columns[0]
+    else:
+        raise ValueError("Expected at least one spatial view for spots layout.")
+
+    control_views = [views.layer_controller]
+    if views.feature_list is not None:
+        control_views.append(views.feature_list)
+    if views.obs_sets is not None:
+        control_views.append(views.obs_sets)
+
+    if len(control_views) == 1:
+        control_column = control_views[0]
+    elif len(control_views) == 2:
+        control_column = vconcat(*control_views, split=[8, 4])
+    else:
+        control_column = vconcat(*control_views, split=[4, 4, 4])
+
+    vc.layout(hconcat(spatial_block, control_column, split=[10, 2]))
+
+
 def _build_shared_visualization(
     vc: VitessceConfig,
     *,
@@ -169,12 +258,16 @@ def _build_shared_visualization(
     file_uuid: str,
     labels_file_uuid: str | None,
     modes: _ProteomicsModes,
+    spot_radius_size_micron: int | None,
     embedding_key_display_name: str,
     center: tuple[float, float] | None,
     zoom: float | None,
     channels: Sequence[int | str] | None,
     palette: Sequence[str] | None,
     layer_opacity: float,
+    segmentation_color: list[int] | None,
+    segmentation_filled: bool,
+    segmentation_stroke_width: float,
 ) -> None:
     spatial_zoom, spatial_target_x, spatial_target_y = vc.add_coordination(
         ct.SPATIAL_ZOOM,
@@ -187,7 +280,14 @@ def _build_shared_visualization(
         spatial_target_x.set_value(center[0])
         spatial_target_y.set_value(center[1])
 
-    spatial_plot = vc.add_view(SPATIAL_VIEW, dataset=dataset)
+    if modes.adata_as_spots and labels_file_uuid is None:
+        spatial_plot = None
+    else:
+        spatial_plot = vc.add_view(SPATIAL_VIEW, dataset=dataset)
+    spatial_plot_spots = None
+    if modes.adata_as_spots:
+        spatial_plot_spots = vc.add_view(SPATIAL_VIEW, dataset=dataset)
+
     layer_controller = vc.add_view(LAYER_CONTROLLER_VIEW, dataset=dataset)
     feature_list = (
         vc.add_view(cm.FEATURE_LIST, dataset=dataset)
@@ -202,7 +302,9 @@ def _build_shared_visualization(
         else None
     )
     """
-    obs_sets = vc.add_view(cm.OBS_SETS, dataset=dataset) # we choose to always show obs selection (e.g. if user wants to annotate cells)
+    obs_sets = vc.add_view(
+        cm.OBS_SETS, dataset=dataset
+    )  # we choose to always show obs selection (e.g. if user wants to annotate cells)
     umap = (
         vc.add_view(
             cm.SCATTERPLOT,
@@ -215,15 +317,21 @@ def _build_shared_visualization(
 
     views = _ProteomicsViews(
         spatial_plot=spatial_plot,
+        spatial_plot_spots=spatial_plot_spots,
         layer_controller=layer_controller,
         feature_list=feature_list,
         heatmap=heatmap,
         obs_sets=obs_sets,
         umap=umap,
     )
-    views.spatial_plot.use_coordination(
-        spatial_zoom, spatial_target_x, spatial_target_y
-    )
+    if views.spatial_plot is not None:
+        views.spatial_plot.use_coordination(
+            spatial_zoom, spatial_target_x, spatial_target_y
+        )
+    if views.spatial_plot_spots is not None:
+        views.spatial_plot_spots.use_coordination(
+            spatial_zoom, spatial_target_x, spatial_target_y
+        )
 
     obs_color = None
     if modes.has_matrix_data and modes.has_clusters:
@@ -249,14 +357,25 @@ def _build_shared_visualization(
         feat_sel.set_value(None)
         obs_set_sel.set_value(None)
 
-        views.spatial_plot.use_coordination(
-            obs_type,
-            feat_type,
-            feat_val_type,
-            obs_color,
-            feat_sel,
-            obs_set_sel,
-        )
+        if views.spatial_plot_spots is not None:
+            views.spatial_plot_spots.use_coordination(
+                obs_type,
+                feat_type,
+                feat_val_type,
+                obs_color,
+                feat_sel,
+                obs_set_sel,
+            )
+        else:
+            views.spatial_plot.use_coordination(
+                obs_type,
+                feat_type,
+                feat_val_type,
+                obs_color,
+                feat_sel,
+                obs_set_sel,
+            )
+
         if views.feature_list is not None:
             views.feature_list.use_coordination(
                 obs_type,
@@ -316,14 +435,25 @@ def _build_shared_visualization(
         feat_sel.set_value(None)
         obs_set_sel.set_value(None)
 
-        views.spatial_plot.use_coordination(
-            obs_type,
-            feat_type,
-            feat_val_type,
-            obs_color,
-            feat_sel,
-            obs_set_sel,
-        )
+        if views.spatial_plot_spots is not None:
+            views.spatial_plot_spots.use_coordination(
+                obs_type,
+                feat_type,
+                feat_val_type,
+                obs_color,
+                feat_sel,
+                obs_set_sel,
+            )
+        else:
+            views.spatial_plot.use_coordination(
+                obs_type,
+                feat_type,
+                feat_val_type,
+                obs_color,
+                feat_sel,
+                obs_set_sel,
+            )
+
         if views.feature_list is not None:
             views.feature_list.use_coordination(
                 obs_type,
@@ -363,7 +493,10 @@ def _build_shared_visualization(
         obs_color.set_value(OBS_COLOR_CELL_SET_SELECTION)
         obs_set_sel.set_value(None)
 
-        views.spatial_plot.use_coordination(obs_type, obs_color, obs_set_sel)
+        if views.spatial_plot_spots is not None:
+            views.spatial_plot_spots.use_coordination(obs_type, obs_color, obs_set_sel)
+        else:
+            views.spatial_plot.use_coordination(obs_type, obs_color, obs_set_sel)
         if views.obs_sets is not None:
             views.obs_sets.use_coordination(obs_type, obs_set_sel, obs_color)
         if views.umap is not None:
@@ -371,7 +504,12 @@ def _build_shared_visualization(
     elif modes.has_embedding:
         (obs_type,) = vc.add_coordination(ct.OBS_TYPE)
         obs_type.set_value(OBS_TYPE_CELL)
-        views.spatial_plot.use_coordination(obs_type)
+
+        if views.spatial_plot_spots is not None:
+            views.spatial_plot_spots.use_coordination(obs_type)
+        else:
+            views.spatial_plot.use_coordination(obs_type)
+
         if views.umap is not None:
             views.umap.use_coordination(obs_type)
 
@@ -383,8 +521,18 @@ def _build_shared_visualization(
         layer_opacity=layer_opacity,
     )
 
+    image_views = []
+    if views.spatial_plot is not None:
+        image_views.append(views.spatial_plot)
+    if modes.adata_as_spots and views.spatial_plot_spots is not None:
+        image_views.append(views.spatial_plot_spots)
+    image_views.append(views.layer_controller)
+    if len(image_views) <= 1:
+        raise ValueError(
+            "Expected at least one spatial view to link with the layer controller."
+        )
     vc.link_views_by_dict(
-        [views.spatial_plot, views.layer_controller],
+        image_views,
         {"imageLayer": CL([image_layer])},
         scope_prefix=get_initial_coordination_scope_prefix("A", "image"),
     )
@@ -392,11 +540,17 @@ def _build_shared_visualization(
     if labels_file_uuid is not None:
         segmentation_channel: dict[str, object] = {
             "spatialTargetC": 0,
-            "spatialChannelOpacity": 0.75,
+            "spatialChannelOpacity": 0.75 if segmentation_filled else 1.0,
+            "spatialSegmentationFilled": segmentation_filled,
+            "spatialSegmentationStrokeWidth": segmentation_stroke_width,
         }
-        if obs_color is not None:
-            segmentation_channel["obsColorEncoding"] = obs_color
-        if modes.has_matrix_data:
+        if segmentation_color is not None:
+            segmentation_channel["spatialChannelColor"] = segmentation_color
+        elif obs_color is not None and not modes.adata_as_spots:
+            segmentation_channel["obsColorEncoding"] = (
+                obs_color  # should we not always color? Maybe not because rendering is not great.
+            )
+        if modes.has_matrix_data and not modes.adata_as_spots:
             segmentation_channel["featureValueColormapRange"] = [0, 1]
 
         vc.link_views_by_dict(
@@ -414,7 +568,44 @@ def _build_shared_visualization(
             scope_prefix=get_initial_coordination_scope_prefix("A", "obsSegmentations"),
         )
 
-    _apply_layout(vc, views=views)
+    if modes.adata_as_spots:
+        spot_layer_channel: dict[str, object] = {
+            "obsType": obs_type,
+            "spatialLayerVisible": True,
+            "spatialLayerOpacity": 1.0,
+            "spatialSpotRadius": spot_radius_size_micron,
+            "spatialSpotFilled": True,
+            "spatialSpotStrokeWidth": 1.0,
+            "spatialLayerColor": [255, 255, 255],
+            "tooltipsVisible": True,
+            "tooltipCrosshairsVisible": True,
+        }
+        if obs_color is not None:
+            spot_layer_channel["obsColorEncoding"] = (
+                obs_color  # added for consistency, also works when not adding obs_color.
+            )
+
+        vc.link_views_by_dict(
+            [views.spatial_plot_spots, views.layer_controller],
+            {
+                "spotLayer": CL([spot_layer_channel]),
+            },
+        )
+    if modes.adata_as_spots and views.spatial_plot is not None:
+        _apply_layout_spots(vc, views=views)
+    elif modes.adata_as_spots and views.spatial_plot_spots is not None:
+        fallback_views = _ProteomicsViews(
+            spatial_plot=views.spatial_plot_spots,
+            spatial_plot_spots=None,
+            layer_controller=views.layer_controller,
+            feature_list=views.feature_list,
+            heatmap=views.heatmap,
+            obs_sets=views.obs_sets,
+            umap=views.umap,
+        )
+        _apply_layout(vc, views=fallback_views)
+    else:
+        _apply_layout(vc, views=views)
 
 
 def _add_raw_wrappers(
@@ -424,11 +615,13 @@ def _add_raw_wrappers(
     img_source: str,
     labels_source: str | None,
     adata_source: str | None,
+    adata_as_spots: bool,
     is_img_remote: bool,
     is_labels_remote: bool,
     is_adata_remote: bool,
     coordinate_transformations_image: Sequence[Mapping[str, object]] | None,
     coordinate_transformations_mask: Sequence[Mapping[str, object]] | None,
+    spatial_key: str,
     modes: _ProteomicsModes,
     cluster_key: str | None,
     cluster_key_display_name: str,
@@ -470,6 +663,11 @@ def _add_raw_wrappers(
             "obs_feature_matrix_path": "X" if modes.has_matrix_data else None,
             "coordination_values": {"obsType": OBS_TYPE_CELL},
         }
+        if adata_as_spots:
+            adata_wrapper_kwargs["obs_spots_path"] = f"obsm/{spatial_key}"
+            adata_wrapper_kwargs["obs_locations_path"] = f"obsm/{spatial_key}"
+        else:
+            adata_wrapper_kwargs["obs_locations_path"] = f"obsm/{spatial_key}"
         if modes.has_matrix_data:
             adata_wrapper_kwargs["coordination_values"].update(
                 {
@@ -539,7 +737,11 @@ def _add_spatialdata_wrapper(
         ),
         "obs_set_paths": (
             [f"{table_prefix}/obs/{cluster_key}"]
-            if (modes.has_clusters and table_prefix is not None and cluster_key is not None)
+            if (
+                modes.has_clusters
+                and table_prefix is not None
+                and cluster_key is not None
+            )
             else None
         ),
         "obs_set_names": [cluster_key_display_name] if modes.has_clusters else None,
@@ -582,6 +784,9 @@ def proteomics_from_spatialdata(
     channels: Sequence[int | str] | None = None,
     palette: Sequence[str] | None = None,
     layer_opacity: float = 1.0,
+    segmentation_color: str | None = None,
+    segmentation_filled: bool = True,
+    segmentation_stroke_width: float = 1.0,
     to_coordinate_system: str = "global",
     visualize_feature_matrix: bool = False,
     visualize_heatmap: bool = False,
@@ -639,6 +844,14 @@ def proteomics_from_spatialdata(
         Optional list of channel colors in ``\"#RRGGBB\"`` format.
     layer_opacity
         Opacity of the image layer in ``[0, 1]``.
+    segmentation_color
+        Optional fixed color for segmentation outlines as ``"#RRGGBB"``.
+        If provided, this overrides coordination-driven segmentation coloring.
+        A good preset for multiplex images is ``"#00E5A8"``.
+    segmentation_filled
+        Whether segmentation shapes are filled.
+    segmentation_stroke_width
+        Stroke width for segmentation outlines.
     to_coordinate_system
         Coordinate system key passed to ``SpatialDataWrapper``.
         Used to resolve image/labels rendering in a shared coordinate system.
@@ -692,6 +905,10 @@ def proteomics_from_spatialdata(
     )
     _validate_camera(center=center, zoom=zoom)
     _validate_layer_opacity(layer_opacity)
+    normalized_segmentation_color = _validate_segmentation_style(
+        segmentation_color=segmentation_color,
+        segmentation_stroke_width=segmentation_stroke_width,
+    )
 
     if img_layer is None:
         raise ValueError("img_layer is required when sdata is provided.")
@@ -717,7 +934,7 @@ def proteomics_from_spatialdata(
         "sdata_path",
     )
     vc = VitessceConfig(
-        name = name,
+        name=name,
         schema_version=schema_version,
         description=description,
         base_dir=(
@@ -750,11 +967,15 @@ def proteomics_from_spatialdata(
         labels_file_uuid=labels_file_uuid,
         modes=modes,
         embedding_key_display_name=embedding_key_display_name,
+        spot_radius_size_micron=None,
         center=center,
         zoom=zoom,
         channels=channels,
         palette=palette,
         layer_opacity=layer_opacity,
+        segmentation_color=normalized_segmentation_color,
+        segmentation_filled=segmentation_filled,
+        segmentation_stroke_width=segmentation_stroke_width,
     )
     return vc
 
@@ -763,6 +984,8 @@ def proteomics_from_split_sources(
     img_source: str | Path,
     labels_source: str | Path | None = None,
     adata_source: str | Path | None = None,
+    adata_as_spots: bool = False,
+    spot_radius_size_micron: int | None = None,
     base_dir: str | Path | None = None,
     name: str = "Proteomics",
     description: str = "Proteomics",
@@ -772,12 +995,16 @@ def proteomics_from_split_sources(
     channels: Sequence[int | str] | None = None,
     palette: Sequence[str] | None = None,
     layer_opacity: float = 1.0,
+    segmentation_color: str | None = None,
+    segmentation_filled: bool = True,
+    segmentation_stroke_width: float = 1.0,
     microns_per_pixel_image: float | tuple[float, float] | None = None,
     coordinate_transformations_image: Sequence[Mapping[str, object]] | None = None,
     microns_per_pixel_mask: float | tuple[float, float] | None = None,
     coordinate_transformations_mask: Sequence[Mapping[str, object]] | None = None,
     visualize_feature_matrix: bool = False,
     visualize_heatmap: bool = False,
+    spatial_key: str = "spatial",
     cluster_key: str | None = None,
     cluster_key_display_name: str = "Clusters",
     embedding_key: str | None = None,
@@ -824,6 +1051,14 @@ def proteomics_from_split_sources(
         Optional list of channel colors in ``\"#RRGGBB\"`` format.
     layer_opacity
         Opacity of the image layer in ``[0, 1]``.
+    segmentation_color
+        Optional fixed color for segmentation outlines as ``"#RRGGBB"``.
+        If provided, this overrides coordination-driven segmentation coloring.
+        A good preset for multiplex images is ``"#00E5A8"``.
+    segmentation_filled
+        Whether segmentation shapes are filled.
+    segmentation_stroke_width
+        Stroke width for segmentation outlines.
     microns_per_pixel_image
         Convenience scale transform on image ``(y, x)`` axes.
         Mutually exclusive with ``coordinate_transformations_image``.
@@ -840,6 +1075,9 @@ def proteomics_from_split_sources(
         If ``True``, expose AnnData ``X`` as marker intensities.
     visualize_heatmap
         If ``True``, expose a heatmap view driven by AnnData ``X``.
+    spatial_key
+        Key under AnnData ``obsm`` containing per-observation spatial
+        coordinates (used as ``obsm/{spatial_key}``).
     cluster_key
         Optional key under AnnData ``obs`` for cell-set annotations.
     cluster_key_display_name
@@ -876,6 +1114,7 @@ def proteomics_from_split_sources(
         visualize_heatmap=visualize_heatmap,
         cluster_key=cluster_key,
         embedding_key=embedding_key,
+        adata_as_spots=adata_as_spots,
     )
 
     _validate_annotation_keys(
@@ -886,14 +1125,28 @@ def proteomics_from_split_sources(
     )
     _validate_camera(center=center, zoom=zoom)
     _validate_layer_opacity(layer_opacity)
+    normalized_segmentation_color = _validate_segmentation_style(
+        segmentation_color=segmentation_color,
+        segmentation_stroke_width=segmentation_stroke_width,
+    )
 
     if not modes.needs_adata and adata_source is not None:
         logger.warning(
             "adata_source was provided, but visualize_feature_matrix=False, "
             "visualize_heatmap=False and cluster_key/embedding_key are None; "
-            "AnnData is ignored."
+            "adata_source is set to None and AnnData is ignored."
         )
         adata_source = None
+
+    if adata_source is None and modes.adata_as_spots:
+        logger.warning(
+            "adata_source is None, while adata_as_spots=True. adata_as_spots is ignored."
+        )
+
+    if modes.adata_as_spots and spot_radius_size_micron is None:
+        raise ValueError(
+            "spot_radius_size_micron needs to be specified if adata_as_spots=True."
+        )
 
     normalized_img_source, is_img_remote = _normalize_path_or_url(
         img_source, "img_source"
@@ -921,7 +1174,11 @@ def proteomics_from_split_sources(
             "adata_source is required when visualize_feature_matrix=True, "
             "visualize_heatmap=True or cluster_key/embedding_key is provided."
         )
-    if modes.needs_adata and normalized_labels_source is None:
+    if (
+        modes.needs_adata
+        and normalized_labels_source is None
+        and not modes.adata_as_spots
+    ):
         raise ValueError(
             "labels_source is required when visualize_feature_matrix=True, "
             "visualize_heatmap=True or cluster_key/embedding_key is provided."
@@ -962,8 +1219,10 @@ def proteomics_from_split_sources(
         is_img_remote=is_img_remote,
         is_labels_remote=is_labels_remote,
         is_adata_remote=is_adata_remote,
+        adata_as_spots=modes.adata_as_spots,
         coordinate_transformations_image=resolved_image_transforms,
         coordinate_transformations_mask=resolved_mask_transforms,
+        spatial_key=spatial_key,
         modes=modes,
         cluster_key=cluster_key,
         cluster_key_display_name=cluster_key_display_name,
@@ -977,11 +1236,15 @@ def proteomics_from_split_sources(
         file_uuid=file_uuid,
         labels_file_uuid=labels_file_uuid,
         modes=modes,
+        spot_radius_size_micron=spot_radius_size_micron,
         embedding_key_display_name=embedding_key_display_name,
         center=center,
         zoom=zoom,
         channels=channels,
         palette=palette,
         layer_opacity=layer_opacity,
+        segmentation_color=normalized_segmentation_color,
+        segmentation_filled=segmentation_filled,
+        segmentation_stroke_width=segmentation_stroke_width,
     )
     return vc
