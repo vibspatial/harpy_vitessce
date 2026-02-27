@@ -119,6 +119,30 @@ def _validate_layer_opacity(layer_opacity: float) -> None:
         raise ValueError("layer_opacity must be between 0.0 and 1.0.")
 
 
+def _validate_segmentation_style(
+    *,
+    segmentation_color: str | None,
+    segmentation_stroke_width: float,
+) -> list[int] | None:
+    if segmentation_stroke_width < 0:
+        raise ValueError("segmentation_stroke_width must be >= 0.")
+    if segmentation_color is None:
+        return None
+    color = segmentation_color.strip()
+    if color.startswith("#"):
+        color = color[1:]
+    if len(color) != 6:
+        raise ValueError(
+            "segmentation_color hex string must have 6 digits, e.g. '#FFAA00'."
+        )
+    try:
+        return [int(color[i : i + 2], 16) for i in range(0, 6, 2)]
+    except ValueError as exc:
+        raise ValueError(
+            "segmentation_color hex string must contain only 0-9 or A-F."
+        ) from exc
+
+
 def _apply_layout(vc: VitessceConfig, *, views: _ProteomicsViews) -> None:
     views.layer_controller.set_props(disableChannelsIfRgbDetected=False)
 
@@ -241,6 +265,9 @@ def _build_shared_visualization(
     channels: Sequence[int | str] | None,
     palette: Sequence[str] | None,
     layer_opacity: float,
+    segmentation_color: list[int] | None,
+    segmentation_filled: bool,
+    segmentation_stroke_width: float,
 ) -> None:
     spatial_zoom, spatial_target_x, spatial_target_y = vc.add_coordination(
         ct.SPATIAL_ZOOM,
@@ -513,11 +540,15 @@ def _build_shared_visualization(
     if labels_file_uuid is not None:
         segmentation_channel: dict[str, object] = {
             "spatialTargetC": 0,
-            "spatialChannelOpacity": 0.75,
+            "spatialChannelOpacity": 0.75 if segmentation_filled else 1.0,
+            "spatialSegmentationFilled": segmentation_filled,
+            "spatialSegmentationStrokeWidth": segmentation_stroke_width,
         }
-        if obs_color is not None and not modes.adata_as_spots:
+        if segmentation_color is not None:
+            segmentation_channel["spatialChannelColor"] = segmentation_color
+        elif obs_color is not None and not modes.adata_as_spots:
             segmentation_channel["obsColorEncoding"] = (
-                obs_color  # should we not always color? No rendering is not great.
+                obs_color  # should we not always color? Maybe not because rendering is not great.
             )
         if modes.has_matrix_data and not modes.adata_as_spots:
             segmentation_channel["featureValueColormapRange"] = [0, 1]
@@ -538,27 +569,27 @@ def _build_shared_visualization(
         )
 
     if modes.adata_as_spots:
+        spot_layer_channel: dict[str, object] = {
+            "obsType": obs_type,
+            "spatialLayerVisible": True,
+            "spatialLayerOpacity": 1.0,
+            "spatialSpotRadius": spot_radius_size_micron,
+            "spatialSpotFilled": True,
+            "spatialSpotStrokeWidth": 1.0,
+            "spatialLayerColor": [255, 255, 255],
+            "tooltipsVisible": True,
+            "tooltipCrosshairsVisible": True,
+        }
+        if obs_color is not None:
+            spot_layer_channel["obsColorEncoding"] = (
+                obs_color  # added for consistency, also works when not adding obs_color.
+            )
+
         vc.link_views_by_dict(
             [views.spatial_plot_spots, views.layer_controller],
             {
-                "spotLayer": CL(
-                    [
-                        {
-                            "obsType": obs_type,
-                            "spatialLayerVisible": True,
-                            "spatialLayerOpacity": 1.0,
-                            # add obscolorecoding here?"
-                            "spatialSpotRadius": spot_radius_size_micron,
-                            "spatialSpotFilled": True,
-                            "spatialSpotStrokeWidth": 1.0,
-                            "spatialLayerColor": [255, 255, 255],
-                            "tooltipsVisible": True,
-                            "tooltipCrosshairsVisible": True,
-                        }
-                    ]
-                ),
+                "spotLayer": CL([spot_layer_channel]),
             },
-            # scope_prefix=get_initial_coordination_scope_prefix("A", "obsSegmentations"),
         )
     if modes.adata_as_spots and views.spatial_plot is not None:
         _apply_layout_spots(vc, views=views)
@@ -753,6 +784,9 @@ def proteomics_from_spatialdata(
     channels: Sequence[int | str] | None = None,
     palette: Sequence[str] | None = None,
     layer_opacity: float = 1.0,
+    segmentation_color: str | None = "#00E5A8",
+    segmentation_filled: bool = True,
+    segmentation_stroke_width: float = 1.0,
     to_coordinate_system: str = "global",
     visualize_feature_matrix: bool = False,
     visualize_heatmap: bool = False,
@@ -810,6 +844,13 @@ def proteomics_from_spatialdata(
         Optional list of channel colors in ``\"#RRGGBB\"`` format.
     layer_opacity
         Opacity of the image layer in ``[0, 1]``.
+    segmentation_color
+        Optional fixed color for segmentation outlines as ``"#RRGGBB"``.
+        If provided, this overrides coordination-driven segmentation coloring.
+    segmentation_filled
+        Whether segmentation shapes are filled.
+    segmentation_stroke_width
+        Stroke width for segmentation outlines.
     to_coordinate_system
         Coordinate system key passed to ``SpatialDataWrapper``.
         Used to resolve image/labels rendering in a shared coordinate system.
@@ -863,6 +904,10 @@ def proteomics_from_spatialdata(
     )
     _validate_camera(center=center, zoom=zoom)
     _validate_layer_opacity(layer_opacity)
+    normalized_segmentation_color = _validate_segmentation_style(
+        segmentation_color=segmentation_color,
+        segmentation_stroke_width=segmentation_stroke_width,
+    )
 
     if img_layer is None:
         raise ValueError("img_layer is required when sdata is provided.")
@@ -927,6 +972,9 @@ def proteomics_from_spatialdata(
         channels=channels,
         palette=palette,
         layer_opacity=layer_opacity,
+        segmentation_color=normalized_segmentation_color,
+        segmentation_filled=segmentation_filled,
+        segmentation_stroke_width=segmentation_stroke_width,
     )
     return vc
 
@@ -946,6 +994,9 @@ def proteomics_from_split_sources(
     channels: Sequence[int | str] | None = None,
     palette: Sequence[str] | None = None,
     layer_opacity: float = 1.0,
+    segmentation_color: str | None = "#00E5A8",
+    segmentation_filled: bool = True,
+    segmentation_stroke_width: float = 1.0,
     microns_per_pixel_image: float | tuple[float, float] | None = None,
     coordinate_transformations_image: Sequence[Mapping[str, object]] | None = None,
     microns_per_pixel_mask: float | tuple[float, float] | None = None,
@@ -999,6 +1050,13 @@ def proteomics_from_split_sources(
         Optional list of channel colors in ``\"#RRGGBB\"`` format.
     layer_opacity
         Opacity of the image layer in ``[0, 1]``.
+    segmentation_color
+        Optional fixed color for segmentation outlines as ``"#RRGGBB"``.
+        If provided, this overrides coordination-driven segmentation coloring.
+    segmentation_filled
+        Whether segmentation shapes are filled.
+    segmentation_stroke_width
+        Stroke width for segmentation outlines.
     microns_per_pixel_image
         Convenience scale transform on image ``(y, x)`` axes.
         Mutually exclusive with ``coordinate_transformations_image``.
@@ -1065,6 +1123,10 @@ def proteomics_from_split_sources(
     )
     _validate_camera(center=center, zoom=zoom)
     _validate_layer_opacity(layer_opacity)
+    normalized_segmentation_color = _validate_segmentation_style(
+        segmentation_color=segmentation_color,
+        segmentation_stroke_width=segmentation_stroke_width,
+    )
 
     if not modes.needs_adata and adata_source is not None:
         logger.warning(
@@ -1179,5 +1241,8 @@ def proteomics_from_split_sources(
         channels=channels,
         palette=palette,
         layer_opacity=layer_opacity,
+        segmentation_color=normalized_segmentation_color,
+        segmentation_filled=segmentation_filled,
+        segmentation_stroke_width=segmentation_stroke_width,
     )
     return vc
