@@ -59,7 +59,7 @@ class _ProteomicsModes:
 
 @dataclass(frozen=True)
 class _ProteomicsViews:
-    spatial_plot: Any
+    spatial_plot: Any | None
     spatial_plot_spots: Any | None
     layer_controller: Any
     feature_list: Any | None
@@ -170,51 +170,61 @@ def _apply_layout(vc: VitessceConfig, *, views: _ProteomicsViews) -> None:
 def _apply_layout_spots(vc: VitessceConfig, *, views: _ProteomicsViews) -> None:
     views.layer_controller.set_props(disableChannelsIfRgbDetected=False)
 
-    if views.feature_list is None:
-        right_views = [views.layer_controller]
-        if views.heatmap is not None:
-            right_views.append(views.heatmap)
-        if views.umap is not None:
-            right_views.append(views.umap)
-        if views.obs_sets is not None:
-            right_views.append(views.obs_sets)
+    spatial_columns: list[Any] = []
+    if views.spatial_plot is not None:
+        left_column = (
+            vconcat(views.spatial_plot, views.umap, split=[8, 4])
+            if views.umap is not None
+            else views.spatial_plot
+        )
+        spatial_columns.append(left_column)
 
-        if len(right_views) == 1:
-            right_column = right_views[0]
-        elif len(right_views) == 2:
-            right_column = vconcat(*right_views, split=[4, 8])
-        elif len(right_views) == 3:
-            right_column = vconcat(*right_views, split=[3, 6, 3])
+    if views.spatial_plot_spots is not None:
+        if views.spatial_plot is None:
+            bottom_views = []
+            if views.umap is not None:
+                bottom_views.append(views.umap)
+            if views.heatmap is not None:
+                bottom_views.append(views.heatmap)
         else:
-            right_column = vconcat(*right_views, split=[2, 4, 4, 2])
+            bottom_views = [views.heatmap] if views.heatmap is not None else []
 
-        vc.layout(hconcat(views.spatial_plot_spots, right_column, split=[8, 4]))
-        return
+        if len(bottom_views) == 0:
+            right_column = views.spatial_plot_spots
+        elif len(bottom_views) == 1:
+            right_column = vconcat(
+                views.spatial_plot_spots, bottom_views[0], split=[8, 4]
+            )
+        else:
+            right_column = vconcat(
+                views.spatial_plot_spots,
+                bottom_views[0],
+                bottom_views[1],
+                split=[6, 3, 3],
+            )
+        spatial_columns.append(right_column)
 
-    middle_views = [views.layer_controller]
-    if views.heatmap is not None:
-        middle_views.append(views.heatmap)
-    if views.umap is not None:
-        middle_views.append(views.umap)
-
-    if len(middle_views) == 1:
-        middle_column = middle_views[0]
-    elif len(middle_views) == 2:
-        middle_column = vconcat(*middle_views, split=[4, 8])
+    if len(spatial_columns) == 2:
+        spatial_block = hconcat(spatial_columns[0], spatial_columns[1], split=[6, 6])
+    elif len(spatial_columns) == 1:
+        spatial_block = spatial_columns[0]
     else:
-        middle_column = vconcat(*middle_views, split=[3, 5, 4])
+        raise ValueError("Expected at least one spatial view for spots layout.")
 
-    right_views = [views.feature_list]
+    control_views = [views.layer_controller]
+    if views.feature_list is not None:
+        control_views.append(views.feature_list)
     if views.obs_sets is not None:
-        right_views.append(views.obs_sets)
-    if len(right_views) == 1:
-        right_column = right_views[0]
-    else:
-        right_column = vconcat(*right_views, split=[8, 4])
+        control_views.append(views.obs_sets)
 
-    vc.layout(
-        hconcat(views.spatial_plot_spots, middle_column, right_column, split=[6, 3, 3])
-    )
+    if len(control_views) == 1:
+        control_column = control_views[0]
+    elif len(control_views) == 2:
+        control_column = vconcat(*control_views, split=[8, 4])
+    else:
+        control_column = vconcat(*control_views, split=[4, 4, 4])
+
+    vc.layout(hconcat(spatial_block, control_column, split=[10, 2]))
 
 
 def _build_shared_visualization(
@@ -243,7 +253,10 @@ def _build_shared_visualization(
         spatial_target_x.set_value(center[0])
         spatial_target_y.set_value(center[1])
 
-    spatial_plot = vc.add_view(SPATIAL_VIEW, dataset=dataset)
+    if modes.adata_as_spots and labels_file_uuid is None:
+        spatial_plot = None
+    else:
+        spatial_plot = vc.add_view(SPATIAL_VIEW, dataset=dataset)
     spatial_plot_spots = None
     if modes.adata_as_spots:
         spatial_plot_spots = vc.add_view(SPATIAL_VIEW, dataset=dataset)
@@ -284,9 +297,10 @@ def _build_shared_visualization(
         obs_sets=obs_sets,
         umap=umap,
     )
-    views.spatial_plot.use_coordination(
-        spatial_zoom, spatial_target_x, spatial_target_y
-    )
+    if views.spatial_plot is not None:
+        views.spatial_plot.use_coordination(
+            spatial_zoom, spatial_target_x, spatial_target_y
+        )
     if views.spatial_plot_spots is not None:
         views.spatial_plot_spots.use_coordination(
             spatial_zoom, spatial_target_x, spatial_target_y
@@ -480,8 +494,18 @@ def _build_shared_visualization(
         layer_opacity=layer_opacity,
     )
 
+    image_views = []
+    if views.spatial_plot is not None:
+        image_views.append(views.spatial_plot)
+    if modes.adata_as_spots and views.spatial_plot_spots is not None:
+        image_views.append(views.spatial_plot_spots)
+    image_views.append(views.layer_controller)
+    if len(image_views) <= 1:
+        raise ValueError(
+            "Expected at least one spatial view to link with the layer controller."
+        )
     vc.link_views_by_dict(
-        [views.spatial_plot, views.layer_controller],
+        image_views,
         {"imageLayer": CL([image_layer])},
         scope_prefix=get_initial_coordination_scope_prefix("A", "image"),
     )
@@ -492,7 +516,9 @@ def _build_shared_visualization(
             "spatialChannelOpacity": 0.75,
         }
         if obs_color is not None and not modes.adata_as_spots:
-            segmentation_channel["obsColorEncoding"] = obs_color
+            segmentation_channel["obsColorEncoding"] = (
+                obs_color  # should we not always color? No rendering is not great.
+            )
         if modes.has_matrix_data and not modes.adata_as_spots:
             segmentation_channel["featureValueColormapRange"] = [0, 1]
 
@@ -534,11 +560,21 @@ def _build_shared_visualization(
             },
             # scope_prefix=get_initial_coordination_scope_prefix("A", "obsSegmentations"),
         )
-
-    # branch here between spots and not spots.
-    _apply_layout_spots(vc, views=views) if modes.adata_as_spots else _apply_layout(
-        vc, views=views
-    )
+    if modes.adata_as_spots and views.spatial_plot is not None:
+        _apply_layout_spots(vc, views=views)
+    elif modes.adata_as_spots and views.spatial_plot_spots is not None:
+        fallback_views = _ProteomicsViews(
+            spatial_plot=views.spatial_plot_spots,
+            spatial_plot_spots=None,
+            layer_controller=views.layer_controller,
+            feature_list=views.feature_list,
+            heatmap=views.heatmap,
+            obs_sets=views.obs_sets,
+            umap=views.umap,
+        )
+        _apply_layout(vc, views=fallback_views)
+    else:
+        _apply_layout(vc, views=views)
 
 
 def _add_raw_wrappers(
@@ -598,6 +634,7 @@ def _add_raw_wrappers(
         }
         if adata_as_spots:
             adata_wrapper_kwargs["obs_spots_path"] = f"obsm/{spatial_key}"
+            adata_wrapper_kwargs["obs_locations_path"] = f"obsm/{spatial_key}"
         else:
             adata_wrapper_kwargs["obs_locations_path"] = f"obsm/{spatial_key}"
         if modes.has_matrix_data:
@@ -884,6 +921,7 @@ def proteomics_from_spatialdata(
         labels_file_uuid=labels_file_uuid,
         modes=modes,
         embedding_key_display_name=embedding_key_display_name,
+        spot_radius_size_micron=None,
         center=center,
         zoom=zoom,
         channels=channels,
@@ -1032,7 +1070,7 @@ def proteomics_from_split_sources(
         logger.warning(
             "adata_source was provided, but visualize_feature_matrix=False, "
             "visualize_heatmap=False and cluster_key/embedding_key are None; "
-            "AnnData is ignored."
+            "adata_source is set to None and AnnData is ignored."
         )
         adata_source = None
 
@@ -1072,7 +1110,11 @@ def proteomics_from_split_sources(
             "adata_source is required when visualize_feature_matrix=True, "
             "visualize_heatmap=True or cluster_key/embedding_key is provided."
         )
-    if modes.needs_adata and normalized_labels_source is None:
+    if (
+        modes.needs_adata
+        and normalized_labels_source is None
+        and not modes.adata_as_spots
+    ):
         raise ValueError(
             "labels_source is required when visualize_feature_matrix=True, "
             "visualize_heatmap=True or cluster_key/embedding_key is provided."
