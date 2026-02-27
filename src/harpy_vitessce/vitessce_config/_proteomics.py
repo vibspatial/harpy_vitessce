@@ -202,7 +202,9 @@ def _build_shared_visualization(
         else None
     )
     """
-    obs_sets = vc.add_view(cm.OBS_SETS, dataset=dataset) # we choose to always show obs selection (e.g. if user wants to annotate cells)
+    obs_sets = vc.add_view(
+        cm.OBS_SETS, dataset=dataset
+    )  # we choose to always show obs selection (e.g. if user wants to annotate cells)
     umap = (
         vc.add_view(
             cm.SCATTERPLOT,
@@ -429,6 +431,7 @@ def _add_raw_wrappers(
     is_adata_remote: bool,
     coordinate_transformations_image: Sequence[Mapping[str, object]] | None,
     coordinate_transformations_mask: Sequence[Mapping[str, object]] | None,
+    spatial_key: str,
     modes: _ProteomicsModes,
     cluster_key: str | None,
     cluster_key_display_name: str,
@@ -468,6 +471,7 @@ def _add_raw_wrappers(
         assert adata_source is not None
         adata_wrapper_kwargs: dict[str, object] = {
             "obs_feature_matrix_path": "X" if modes.has_matrix_data else None,
+            "obs_locations_path": f"obsm/{spatial_key}",
             "coordination_values": {"obsType": OBS_TYPE_CELL},
         }
         if modes.has_matrix_data:
@@ -539,7 +543,11 @@ def _add_spatialdata_wrapper(
         ),
         "obs_set_paths": (
             [f"{table_prefix}/obs/{cluster_key}"]
-            if (modes.has_clusters and table_prefix is not None and cluster_key is not None)
+            if (
+                modes.has_clusters
+                and table_prefix is not None
+                and cluster_key is not None
+            )
             else None
         ),
         "obs_set_names": [cluster_key_display_name] if modes.has_clusters else None,
@@ -717,7 +725,7 @@ def proteomics_from_spatialdata(
         "sdata_path",
     )
     vc = VitessceConfig(
-        name = name,
+        name=name,
         schema_version=schema_version,
         description=description,
         base_dir=(
@@ -778,6 +786,7 @@ def proteomics_from_split_sources(
     coordinate_transformations_mask: Sequence[Mapping[str, object]] | None = None,
     visualize_feature_matrix: bool = False,
     visualize_heatmap: bool = False,
+    spatial_key: str = "spatial",
     cluster_key: str | None = None,
     cluster_key_display_name: str = "Clusters",
     embedding_key: str | None = None,
@@ -840,6 +849,9 @@ def proteomics_from_split_sources(
         If ``True``, expose AnnData ``X`` as marker intensities.
     visualize_heatmap
         If ``True``, expose a heatmap view driven by AnnData ``X``.
+    spatial_key
+        Key under AnnData ``obsm`` containing per-observation spatial
+        coordinates (used as ``obsm/{spatial_key}``).
     cluster_key
         Optional key under AnnData ``obs`` for cell-set annotations.
     cluster_key_display_name
@@ -964,6 +976,7 @@ def proteomics_from_split_sources(
         is_adata_remote=is_adata_remote,
         coordinate_transformations_image=resolved_image_transforms,
         coordinate_transformations_mask=resolved_mask_transforms,
+        spatial_key=spatial_key,
         modes=modes,
         cluster_key=cluster_key,
         cluster_key_display_name=cluster_key_display_name,
