@@ -539,6 +539,7 @@ def _build_shared_visualization(
 
     if labels_file_uuid is not None:
         segmentation_channel: dict[str, object] = {
+            "obsType": OBS_TYPE_CELL,
             "spatialTargetC": 0,
             "spatialChannelOpacity": 0.75 if segmentation_filled else 1.0,
             "spatialSegmentationFilled": segmentation_filled,
