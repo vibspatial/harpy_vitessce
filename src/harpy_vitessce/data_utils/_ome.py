@@ -255,11 +255,16 @@ def xarray_to_ome_zarr(
         else np.finfo(da_for_dtype.dtype)
     )
 
+    max_value = (
+        dtype_info.max.item()
+        if isinstance(dtype_info.max, np.generic)
+        else dtype_info.max
+    )
     default_window = {
         "start": 0,
         "min": 0,
-        "max": dtype_info.max,
-        "end": dtype_info.max,
+        "max": max_value,
+        "end": max_value,
     }
 
     z_root.attrs["omero"] = {
@@ -413,11 +418,16 @@ def array_to_ome_zarr(
     dtype = np.dtype(img_arr.dtype)
     dtype_info = np.iinfo(dtype) if dtype.kind in ("u", "i") else np.finfo(dtype)
 
+    max_value = (
+        dtype_info.max.item()
+        if isinstance(dtype_info.max, np.generic)
+        else dtype_info.max
+    )
     default_window = {
         "start": 0,
         "min": 0,
-        "max": dtype_info.max,
-        "end": dtype_info.max,
+        "max": max_value,
+        "end": max_value,
     }
 
     z_root.attrs["omero"] = {
