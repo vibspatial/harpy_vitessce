@@ -31,7 +31,7 @@ def proteomics_from_spatialdata(
     embedding_key: str | None = None,
     embedding_key_display_name: str = "UMAP",
 ) -> VitessceConfig:
-    """Build a proteomics-flavored observations config from a SpatialData source."""
+    """Build a proteomics config from a SpatialData source."""
     return _from_spatialdata(
         sdata_path=sdata_path,
         img_layer=img_layer,
@@ -90,7 +90,7 @@ def proteomics_from_split_sources(
     embedding_key: str | None = None,
     embedding_key_display_name: str = "UMAP",
 ) -> VitessceConfig:
-    """Build a proteomics-flavored observations config from split image/labels/AnnData sources."""
+    """Build a proteomics config from split sources."""
     return _from_split_sources(
         img_source=img_source,
         labels_source=labels_source,
