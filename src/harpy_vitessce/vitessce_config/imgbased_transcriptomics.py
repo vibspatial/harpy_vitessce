@@ -6,7 +6,7 @@ from vitessce import VitessceConfig
 from ._observations import _from_spatialdata, _from_split_sources
 
 
-def imagebased_transcriptomics_from_spatialdata(
+def imgbased_transcriptomics_from_spatialdata(
     sdata_path: str | Path,
     img_layer: str | None = None,
     labels_layer: str | None = None,
@@ -59,7 +59,7 @@ def imagebased_transcriptomics_from_spatialdata(
     )
 
 
-def imagebased_transcriptomics_from_split_sources(
+def imgbased_transcriptomics_from_split_sources(
     img_source: str | Path,
     labels_source: str | Path | None = None,
     adata_source: str | Path | None = None,
