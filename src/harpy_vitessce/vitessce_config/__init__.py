@@ -5,6 +5,10 @@ from typing import TYPE_CHECKING
 import lazy_loader as lazy
 
 if TYPE_CHECKING:
+    from .imgbased_transcriptomics import (
+        imgbased_transcriptomics_from_spatialdata,
+        imgbased_transcriptomics_from_split_sources,
+    )
     from ._proteomics import proteomics_from_spatialdata, proteomics_from_split_sources
     from ._seqbased_transcriptomics import (
         seq_based_from_spatialdata,
@@ -15,6 +19,10 @@ if TYPE_CHECKING:
 __getattr__, __dir__, _ = lazy.attach(
     __name__,
     submod_attrs={
+        "imgbased_transcriptomics": [
+            "imgbased_transcriptomics_from_spatialdata",
+            "imgbased_transcriptomics_from_split_sources",
+        ],
         "_proteomics": [
             "proteomics_from_spatialdata",
             "proteomics_from_split_sources",
@@ -28,6 +36,8 @@ __getattr__, __dir__, _ = lazy.attach(
 )
 
 __all__ = [
+    "imgbased_transcriptomics_from_spatialdata",
+    "imgbased_transcriptomics_from_split_sources",
     "proteomics_from_split_sources",
     "proteomics_from_spatialdata",
     "seq_based_from_spatialdata",

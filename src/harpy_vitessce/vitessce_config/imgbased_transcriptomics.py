@@ -6,14 +6,14 @@ from vitessce import VitessceConfig
 from ._observations import _from_spatialdata, _from_split_sources
 
 
-def proteomics_from_spatialdata(
+def imgbased_transcriptomics_from_spatialdata(
     sdata_path: str | Path,
     img_layer: str | None = None,
     labels_layer: str | None = None,
     table_layer: str | None = None,
     base_dir: str | Path | None = None,
-    name: str = "Proteomics",
-    description: str = "Proteomics",
+    name: str = "Image-based transcriptomics",
+    description: str = "Image-based transcriptomics",
     schema_version: str = "1.0.18",
     center: tuple[float, float] | None = None,
     zoom: float | None = -4,
@@ -31,7 +31,7 @@ def proteomics_from_spatialdata(
     embedding_key: str | None = None,
     embedding_key_display_name: str = "UMAP",
 ) -> VitessceConfig:
-    """Build a proteomics config from a SpatialData source."""
+    """Build an image-based transcriptomics config from a SpatialData source."""
     return _from_spatialdata(
         sdata_path=sdata_path,
         img_layer=img_layer,
@@ -56,19 +56,19 @@ def proteomics_from_spatialdata(
         cluster_key_display_name=cluster_key_display_name,
         embedding_key=embedding_key,
         embedding_key_display_name=embedding_key_display_name,
-        feature_type="marker",
+        feature_type="gene",
     )
 
 
-def proteomics_from_split_sources(
+def imgbased_transcriptomics_from_split_sources(
     img_source: str | Path,
     labels_source: str | Path | None = None,
     adata_source: str | Path | None = None,
     adata_as_spots: bool = False,
     spot_radius_size_micron: int | None = None,
     base_dir: str | Path | None = None,
-    name: str = "Proteomics",
-    description: str = "Proteomics",
+    name: str = "Image-based transcriptomics",
+    description: str = "Image-based transcriptomics",
     schema_version: str = "1.0.18",
     center: tuple[float, float] | None = None,
     zoom: float | None = -4,
@@ -90,7 +90,7 @@ def proteomics_from_split_sources(
     embedding_key: str | None = None,
     embedding_key_display_name: str = "UMAP",
 ) -> VitessceConfig:
-    """Build a proteomics config from split sources."""
+    """Build an image-based transcriptomics config from split sources."""
     return _from_split_sources(
         img_source=img_source,
         labels_source=labels_source,
@@ -120,5 +120,5 @@ def proteomics_from_split_sources(
         cluster_key_display_name=cluster_key_display_name,
         embedding_key=embedding_key,
         embedding_key_display_name=embedding_key_display_name,
-        feature_type="marker",
+        feature_type="gene",
     )
