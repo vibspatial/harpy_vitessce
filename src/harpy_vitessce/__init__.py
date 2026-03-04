@@ -7,6 +7,8 @@ import lazy_loader as lazy
 if TYPE_CHECKING:
     from . import data_utils, vitessce_config
     from .vitessce_config import (
+        imagebased_transcriptomics_from_spatialdata,
+        imagebased_transcriptomics_from_split_sources,
         proteomics_from_spatialdata,
         proteomics_from_split_sources,
         seq_based_from_spatialdata,
@@ -19,6 +21,8 @@ _lazy_getattr, _lazy_dir, _ = lazy.attach(
     submodules=["data_utils", "vitessce_config"],
     submod_attrs={
         "vitessce_config": [
+            "imagebased_transcriptomics_from_spatialdata",
+            "imagebased_transcriptomics_from_split_sources",
             "proteomics_from_spatialdata",
             "proteomics_from_split_sources",
             "seq_based_from_spatialdata",
@@ -39,6 +43,8 @@ def __dir__():
 __all__ = [
     "data_utils",
     "vitessce_config",
+    "imagebased_transcriptomics_from_spatialdata",
+    "imagebased_transcriptomics_from_split_sources",
     "proteomics_from_split_sources",
     "proteomics_from_spatialdata",
     "seq_based_from_spatialdata",

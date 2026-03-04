@@ -41,7 +41,8 @@ from harpy_vitessce.vitessce_config._utils import (
 
 OBS_TYPE_CELL = "cell"
 FEATURE_TYPE_MARKER = "marker"
-FEATURE_VALUE_TYPE = "value"
+FEATURE_TYPE_GENE = "gene"
+FEATURE_VALUE_TYPE = "value"  # this can be changed, without effect on results
 OBS_COLOR_GENE_SELECTION = "geneSelection"
 OBS_COLOR_CELL_SET_SELECTION = "cellSetSelection"
 
@@ -55,6 +56,7 @@ class _Modes:
     has_embedding: bool
     needs_adata: bool
     adata_as_spots: bool
+    feature_type: str
 
 
 @dataclass(frozen=True)
@@ -75,6 +77,7 @@ def _compute_modes(
     cluster_key: str | None,
     embedding_key: str | None,
     adata_as_spots: bool,
+    feature_type: str,
 ) -> _Modes:
     has_feature_matrix = visualize_feature_matrix
     has_heatmap = visualize_heatmap
@@ -90,6 +93,7 @@ def _compute_modes(
         has_embedding=has_embedding,
         needs_adata=needs_adata,
         adata_as_spots=adata_as_spots and needs_adata,
+        feature_type=feature_type,
     )
 
 
@@ -111,6 +115,13 @@ def _validate_annotation_keys(
     if embedding_key is not None and not embedding_key_display_name:
         raise ValueError(
             "embedding_key_display_name must be non-empty when embedding_key is provided."
+        )
+
+
+def _validate_feature_type(feature_type: str) -> None:
+    if feature_type not in {FEATURE_TYPE_MARKER, FEATURE_TYPE_GENE}:
+        raise ValueError(
+            f"feature_type must be either 'marker' or 'gene'; got {feature_type!r}."
         )
 
 
@@ -351,7 +362,7 @@ def _build_shared_visualization(
             ct.OBS_SET_SELECTION,
         )
         obs_type.set_value(OBS_TYPE_CELL)
-        feat_type.set_value(FEATURE_TYPE_MARKER)
+        feat_type.set_value(modes.feature_type)
         feat_val_type.set_value(FEATURE_VALUE_TYPE)
         obs_color.set_value(OBS_COLOR_CELL_SET_SELECTION)
         feat_sel.set_value(None)
@@ -429,7 +440,7 @@ def _build_shared_visualization(
         #    ct.FEATURE_SELECTION,
         # )
         obs_type.set_value(OBS_TYPE_CELL)
-        feat_type.set_value(FEATURE_TYPE_MARKER)
+        feat_type.set_value(modes.feature_type)
         feat_val_type.set_value(FEATURE_VALUE_TYPE)
         obs_color.set_value(OBS_COLOR_GENE_SELECTION)
         feat_sel.set_value(None)
@@ -672,7 +683,7 @@ def _add_raw_wrappers(
         if modes.has_matrix_data:
             adata_wrapper_kwargs["coordination_values"].update(
                 {
-                    "featureType": FEATURE_TYPE_MARKER,
+                    "featureType": modes.feature_type,
                     "featureValueType": FEATURE_VALUE_TYPE,
                 }
             )
@@ -720,7 +731,7 @@ def _add_spatialdata_wrapper(
     if modes.has_matrix_data:
         file_coordination_values.update(
             {
-                "featureType": FEATURE_TYPE_MARKER,
+                "featureType": modes.feature_type,
                 "featureValueType": FEATURE_VALUE_TYPE,
             }
         )
@@ -795,6 +806,7 @@ def _from_spatialdata(
     cluster_key_display_name: str = "Clusters",
     embedding_key: str | None = None,
     embedding_key_display_name: str = "UMAP",
+    feature_type: str = FEATURE_TYPE_MARKER,
 ) -> VitessceConfig:
     """
     Build a Vitessce configuration for observation-centric image/segmentation visualization
@@ -891,12 +903,14 @@ def _from_spatialdata(
         If table-driven visualization is requested but ``labels_layer`` is missing.
         If ``sdata_path`` is invalid (empty or unsupported URL format).
     """
+    _validate_feature_type(feature_type)
     modes = _compute_modes(
         visualize_feature_matrix=visualize_feature_matrix,
         visualize_heatmap=visualize_heatmap,
         cluster_key=cluster_key,
         embedding_key=embedding_key,
         adata_as_spots=False,
+        feature_type=feature_type,
     )
 
     _validate_annotation_keys(
@@ -1011,6 +1025,7 @@ def _from_split_sources(
     cluster_key_display_name: str = "Clusters",
     embedding_key: str | None = None,
     embedding_key_display_name: str = "UMAP",
+    feature_type: str = FEATURE_TYPE_MARKER,
 ) -> VitessceConfig:
     """
     Build a Vitessce configuration for observation-centric image/segmentation visualization
@@ -1111,12 +1126,14 @@ def _from_split_sources(
         If transformation arguments are inconsistent or invalid (for example
         both transformation styles provided or non-positive scale values).
     """
+    _validate_feature_type(feature_type)
     modes = _compute_modes(
         visualize_feature_matrix=visualize_feature_matrix,
         visualize_heatmap=visualize_heatmap,
         cluster_key=cluster_key,
         embedding_key=embedding_key,
         adata_as_spots=adata_as_spots,
+        feature_type=feature_type,
     )
 
     _validate_annotation_keys(
