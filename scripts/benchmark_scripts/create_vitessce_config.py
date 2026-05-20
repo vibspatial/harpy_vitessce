@@ -95,6 +95,7 @@ def parse_args() -> argparse.Namespace:
             "n_genes_by_counts",
             "total_counts_mt",
             "pct_counts_mt",
+            "pct_counts_in_top_50_genes",
         ],
         help="obs keys to expose as QC features (space-separated list).",
     )

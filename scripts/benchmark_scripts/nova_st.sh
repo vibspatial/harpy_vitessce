@@ -53,7 +53,7 @@ for PLATFORM in "${PLATFORMS_TO_RUN[@]}"; do
       exit 1
     fi
 
-    BASE_DIR="/data/groups/technologies/spatial.catalyst/Projects/2024-07-UTBenchmark-SpC/data/processed/${PLATFORM}/${EXPERIMENT_NAME}"
+    BASE_DIR="/data/groups/technologies/spatial.catalyst/Projects/2024-07-UTBenchmark-SpC/data/processed/${PLATFORM}/${EXPERIMENT_NAME}/subsampled_100M"
     INPUT_DIR="${BASE_DIR}/harpy"
     OUTPUT_DIR=/data/groups/technologies/spatial.catalyst/Arne/UTbenchmark/${PLATFORM}/${EXPERIMENT_NAME}/harpy_vitessce # for testing
     #OUTPUT_DIR="${BASE_DIR}/harpy_vitessce"

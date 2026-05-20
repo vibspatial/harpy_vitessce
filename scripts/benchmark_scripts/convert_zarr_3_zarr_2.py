@@ -107,6 +107,7 @@ def main() -> int:
                 "n_genes_by_counts",
                 "total_counts_mt",
                 "pct_counts_mt",
+                "pct_counts_in_top_50_genes",
             ]
             adata_annotated = copy_annotations(
                 src=sdata[f"hexagonal_grid_{args.resolution}um_table_processed"],
@@ -121,6 +122,7 @@ def main() -> int:
                 "n_genes_by_counts",
                 "total_counts_mt",
                 "pct_counts_mt",
+                "pct_counts_in_top_50_genes",
             ]
             adata_annotated = sdata[f"square_0{args.resolution}um"]
             adata_annotated = adata_annotated[
