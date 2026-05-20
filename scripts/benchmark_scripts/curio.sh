@@ -9,9 +9,9 @@ PLATFORMS_TO_RUN=("Curio_seeker")
 
 CURIO_EXPERIMENT_NAMES=(
   "SC11"
-  "SC12"
-  "SC13"
-  "SC14"
+  #"SC12"
+  #"SC13"
+  #"SC14"
 )
 
 declare -A CURIO_MICRONS_PER_PIXEL_BY_EXPERIMENT=(
@@ -30,7 +30,7 @@ declare -A CURIO_PLATFORM_BY_EXPERIMENT=(
 
 #RESOLUTIONS=("02" "08" "16" "20" "120")
 
-RESOLUTIONS=( "20" "120")
+RESOLUTIONS=( "20")
 
 for PLATFORM in "${PLATFORMS_TO_RUN[@]}"; do
   EXPERIMENT_NAMES=("${CURIO_EXPERIMENT_NAMES[@]}")
@@ -54,7 +54,7 @@ for PLATFORM in "${PLATFORMS_TO_RUN[@]}"; do
 
     BASE_DIR="/data/groups/technologies/spatial.catalyst/Projects/2024-07-UTBenchmark-SpC/data/processed/${PLATFORM}/${EXPERIMENT_NAME}/subsampled_100M"
     INPUT_DIR="${BASE_DIR}/harpy"
-    OUTPUT_DIR=/data/groups/technologies/spatial.catalyst/Arne/UTbenchmark/${PLATFORM}/${EXPERIMENT_NAME}/harpy_vitessce # for testing
+    OUTPUT_DIR=/data/groups/technologies/spatial.catalyst/Arne/UTbenchmark/${PLATFORM}/${EXPERIMENT_NAME}/harpy_vitessce_test # for testing
     #OUTPUT_DIR="${BASE_DIR}/harpy_vitessce"
 
     SDATA_PATH="${INPUT_DIR}/sdata.zarr"

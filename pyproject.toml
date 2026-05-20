@@ -17,6 +17,9 @@ dependencies = [
 
 [project.optional-dependencies]
 vitessce = ["vitessce[all]>=3.8.0"]
+globus = [
+    "globus_utilities @ git+https://github.com/ArneDefauw/globus_utilities.git@main",
+]
 docs = [
     "sphinx>=4.5",
     "sphinx-book-theme>=1.0.0",
