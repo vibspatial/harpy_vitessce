@@ -9,9 +9,9 @@ PLATFORMS_TO_RUN=("Curio_seeker")
 
 CURIO_EXPERIMENT_NAMES=(
   "SC11"
-  #"SC12"
-  #"SC13"
-  #"SC14"
+  "SC12"
+  "SC13"
+  "SC14"
 )
 
 declare -A CURIO_MICRONS_PER_PIXEL_BY_EXPERIMENT=(

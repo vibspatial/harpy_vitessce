@@ -8,7 +8,7 @@ PLATFORMS_TO_RUN=("BMK_S3000")
 # PLATFORMS_TO_RUN=("BMK_S3000")
 # PLATFORMS_TO_RUN=("BMK_S1000")
 
-NOVA_ST_EXPERIMENT_NAMES=(
+BMK_EXPERIMENT_NAMES=(
   #"Exp100"
   "Exp101"
   "Exp99"
@@ -16,7 +16,7 @@ NOVA_ST_EXPERIMENT_NAMES=(
   #"exp74"
 )
 
-declare -A NOVA_ST_MICRONS_PER_PIXEL_BY_EXPERIMENT=(
+declare -A BMK_MICRONS_PER_PIXEL_BY_EXPERIMENT=(
   ["Exp100"]="0.340"
   ["Exp101"]="0.340" 
   ["Exp99"]="0.340"
@@ -24,7 +24,7 @@ declare -A NOVA_ST_MICRONS_PER_PIXEL_BY_EXPERIMENT=(
   ["exp74"]="0.341"
 )
 
-declare -A NOVA_ST_PLATFORM_BY_EXPERIMENT=(
+declare -A BMK_PLATFORM_BY_EXPERIMENT=(
   ["Exp100"]="BMK_S3000"
   ["Exp101"]="BMK_S3000"
   ["Exp99"]="BMK_S3000"
@@ -58,11 +58,11 @@ for PLATFORM in "${PLATFORMS_TO_RUN[@]}"; do
 
     BASE_DIR="/data/groups/technologies/spatial.catalyst/Projects/2024-07-UTBenchmark-SpC/data/processed/${PLATFORM}/${EXPERIMENT_NAME}/subsampled_100M"
     INPUT_DIR="${BASE_DIR}/harpy"
-    OUTPUT_DIR=/data/groups/technologies/spatial.catalyst/Arne/UTbenchmark/${PLATFORM}/${EXPERIMENT_NAME}/harpy_vitessce # for testing
-    #OUTPUT_DIR="${BASE_DIR}/harpy_vitessce"
+    OUTPUT_BASE_DIR=/data/groups/technologies/spatial.catalyst/Arne/UTbenchmark/${PLATFORM}/${EXPERIMENT_NAME}/vitessce # for testing
+    #OUTPUT_BASE_DIR="${BASE_DIR}/harpy_vitessce"
+    BUCKET_OUTPUT_BASE_DIR="${PLATFORM}/${EXPERIMENT_NAME}/$(basename "${OUTPUT_BASE_DIR}")"
 
     SDATA_PATH="${INPUT_DIR}/sdata.zarr"
-    OUTPUT_PATH_IMG="${OUTPUT_DIR}/image.ome.zarr"
     IMAGE_LAYER="${EXPERIMENT_NAME}_he"
     IMAGE_LAYER="${IMAGE_LAYER,,}" # make it lowercase
 
@@ -71,6 +71,8 @@ for PLATFORM in "${PLATFORMS_TO_RUN[@]}"; do
 
     # conversion
     for RESOLUTION in "${RESOLUTIONS[@]}"; do
+      OUTPUT_DIR="${OUTPUT_BASE_DIR}/${RESOLUTION}um"
+      OUTPUT_PATH_IMG="${OUTPUT_DIR}/image.ome.zarr"
       OUTPUT_PATH_ADATA="${OUTPUT_DIR}/adata_${RESOLUTION}um.zarr"
 
       TO_COPY_ANNOTATIONS_ARG=()
@@ -93,8 +95,10 @@ for PLATFORM in "${PLATFORMS_TO_RUN[@]}"; do
 
     # create config
     for RESOLUTION in "${RESOLUTIONS[@]}"; do
+      OUTPUT_DIR="${OUTPUT_BASE_DIR}/${RESOLUTION}um"
+      OUTPUT_PATH_IMG="${OUTPUT_DIR}/image.ome.zarr"
       OUTPUT_PATH_ADATA="${OUTPUT_DIR}/adata_${RESOLUTION}um.zarr"
-      OUTPUT_PATH_CONFIG="${OUTPUT_DIR}/vitessce_${RESOLUTION}.config.json"
+      BUCKET_OUTPUT_DIR="${BUCKET_OUTPUT_BASE_DIR}"
 
       if [[ "${RESOLUTION}" == "120" || "${RESOLUTION}" == "20" ]]; then
         CLUSTER_KEY="leiden_1"
@@ -109,7 +113,7 @@ for PLATFORM in "${PLATFORMS_TO_RUN[@]}"; do
         --base-dir "${OUTPUT_DIR}" \
         --adata-path "${OUTPUT_PATH_ADATA}" \
         --image-path "${OUTPUT_PATH_IMG}" \
-        --output-config-path "${OUTPUT_PATH_CONFIG}" \
+        --bucket-output-dir "${BUCKET_OUTPUT_DIR}" \
         --name "Example" \
         --zoom -3.2 \
         --cluster-key "${CLUSTER_KEY}" \
