@@ -1,0 +1,40 @@
+# .codex/config.toml
+
+approval_policy = "on-request"
+sandbox_mode = "workspace-write"
+
+[projects."/data/groups/technologies/spatial.catalyst/Arne/harpy_vitessce"]
+trust_level = "trusted"
+
+[projects."/data/groups/technologies/spatial.catalyst"]
+trust_level = "trusted"
+
+[plugins."github@openai-curated"]
+enabled = true
+
+[sandbox_workspace_write]
+network_access = true
+writable_roots = [
+  "/data/groups/technologies/spatial.catalyst",
+]
+
+[features]
+shell_snapshot = true
+
+[history]
+persistence = "save-all"
+
+[shell_environment_policy]
+inherit = "all"
+experimental_use_profile = true
+
+[shell_environment_policy.set]
+HOME = "/data/groups/technologies/spatial.catalyst/Arne/.codex-home"
+UV_PROJECT_ENVIRONMENT = "/data/groups/technologies/spatial.catalyst/Arne/harpy_vitessce/.venv_harpy_vitessce_zarr2"
+PYTHONUNBUFFERED = "1"
+PYTHONPYCACHEPREFIX = ".cache/codex/pycache"
+XDG_CACHE_HOME = ".cache/codex"
+PIP_CACHE_DIR = ".cache/codex/pip"
+UV_CACHE_DIR = ".cache/codex/uv"
+MPLCONFIGDIR = ".cache/codex/matplotlib"
+RUFF_CACHE_DIR = ".cache/codex/ruff_cache"
