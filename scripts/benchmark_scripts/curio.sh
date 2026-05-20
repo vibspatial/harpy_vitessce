@@ -54,11 +54,11 @@ for PLATFORM in "${PLATFORMS_TO_RUN[@]}"; do
 
     BASE_DIR="/data/groups/technologies/spatial.catalyst/Projects/2024-07-UTBenchmark-SpC/data/processed/${PLATFORM}/${EXPERIMENT_NAME}/subsampled_100M"
     INPUT_DIR="${BASE_DIR}/harpy"
-    OUTPUT_DIR=/data/groups/technologies/spatial.catalyst/Arne/UTbenchmark/${PLATFORM}/${EXPERIMENT_NAME}/harpy_vitessce_test # for testing
-    #OUTPUT_DIR="${BASE_DIR}/harpy_vitessce"
+    OUTPUT_BASE_DIR=/data/groups/technologies/spatial.catalyst/Arne/UTbenchmark/${PLATFORM}/${EXPERIMENT_NAME}/harpy_vitessce_20_05_26 # for testing
+    #OUTPUT_BASE_DIR="${BASE_DIR}/harpy_vitessce"
+    BUCKET_OUTPUT_BASE_DIR="${PLATFORM}/${EXPERIMENT_NAME}"
 
     SDATA_PATH="${INPUT_DIR}/sdata.zarr"
-    OUTPUT_PATH_IMG="${OUTPUT_DIR}/image.ome.zarr"
     IMAGE_LAYER="None"
 
     # need zarr3 environment for conversion
@@ -66,6 +66,8 @@ for PLATFORM in "${PLATFORMS_TO_RUN[@]}"; do
 
     # conversion
     for RESOLUTION in "${RESOLUTIONS[@]}"; do
+      OUTPUT_DIR="${OUTPUT_BASE_DIR}/${RESOLUTION}um"
+      OUTPUT_PATH_IMG="${OUTPUT_DIR}/image.ome.zarr"
       OUTPUT_PATH_ADATA="${OUTPUT_DIR}/adata_${RESOLUTION}um.zarr"
 
       TO_COPY_ANNOTATIONS_ARG=()
@@ -88,8 +90,9 @@ for PLATFORM in "${PLATFORMS_TO_RUN[@]}"; do
 
     # create config
     for RESOLUTION in "${RESOLUTIONS[@]}"; do
+      OUTPUT_DIR="${OUTPUT_BASE_DIR}/${RESOLUTION}um"
       OUTPUT_PATH_ADATA="${OUTPUT_DIR}/adata_${RESOLUTION}um.zarr"
-      OUTPUT_PATH_CONFIG="${OUTPUT_DIR}/vitessce_${RESOLUTION}.config.json"
+      BUCKET_OUTPUT_DIR="${BUCKET_OUTPUT_BASE_DIR}"
 
       if [[ "${RESOLUTION}" == "120" || "${RESOLUTION}" == "20" ]]; then
         CLUSTER_KEY="leiden_1"
@@ -104,7 +107,7 @@ for PLATFORM in "${PLATFORMS_TO_RUN[@]}"; do
         --base-dir "${OUTPUT_DIR}" \
         --adata-path "${OUTPUT_PATH_ADATA}" \
         --image-path "None" \
-        --output-config-path "${OUTPUT_PATH_CONFIG}" \
+        --bucket-output-dir "${BUCKET_OUTPUT_DIR}" \
         --name "Example" \
         --zoom -3.2 \
         --cluster-key "${CLUSTER_KEY}" \
