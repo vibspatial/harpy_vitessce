@@ -3,7 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-S3=true
+S3=false
 
 PLATFORMS_TO_RUN=("BMK_S3000")
 # Examples:
@@ -11,11 +11,11 @@ PLATFORMS_TO_RUN=("BMK_S3000")
 # PLATFORMS_TO_RUN=("BMK_S1000")
 
 BMK_EXPERIMENT_NAMES=(
-  #"Exp100"
+  "Exp100"
   "Exp101"
   "Exp99"
   "Exp102"
-  #"exp74"
+  "exp74"
 )
 
 declare -A BMK_MICRONS_PER_PIXEL_BY_EXPERIMENT=(
@@ -36,7 +36,7 @@ declare -A BMK_PLATFORM_BY_EXPERIMENT=(
 
 #RESOLUTIONS=("02" "08" "16" "20" "120")
 
-RESOLUTIONS=( "20" "120")
+RESOLUTIONS=( "20")
 
 for PLATFORM in "${PLATFORMS_TO_RUN[@]}"; do
   EXPERIMENT_NAMES=("${BMK_EXPERIMENT_NAMES[@]}")
