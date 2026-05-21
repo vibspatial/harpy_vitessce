@@ -3,7 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-S3=true
+S3=false
 
 PLATFORMS_TO_RUN=("Curio_seeker")
 # Examples:
