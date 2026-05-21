@@ -110,6 +110,7 @@ for PLATFORM in "${PLATFORMS_TO_RUN[@]}"; do
         "total_counts"
         "n_genes_by_counts"
         "pct_counts_in_top_50_genes"
+        --channel-windows 0 1000
         --cluster-key "${CLUSTER_KEY}"
         --embedding-key "${EMBEDDING_KEY}"
       )
