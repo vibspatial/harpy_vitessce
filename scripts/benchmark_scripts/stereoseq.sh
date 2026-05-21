@@ -3,6 +3,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+S3=true
+
 PLATFORMS_TO_RUN=("Stereo-Seq")
 # Examples:
 # PLATFORMS_TO_RUN=("Stereo-Seq")
@@ -105,17 +107,22 @@ for PLATFORM in "${PLATFORMS_TO_RUN[@]}"; do
         EMBEDDING_KEY="None"
       fi
 
-      python "${SCRIPT_DIR}/create_vitessce_config.py" \
-        --resolution "${RESOLUTION}" \
-        --base-dir "${OUTPUT_DIR}" \
-        --adata-path "${OUTPUT_PATH_ADATA}" \
-        --image-path "${OUTPUT_PATH_IMG}" \
-        --bucket-output-dir "${BUCKET_OUTPUT_DIR}" \
-        --name "Example" \
-        --zoom -3.2 \
-        --visualize-as-multiplex \
-        --cluster-key "${CLUSTER_KEY}" \
+      CONFIG_ARGS=(
+        --resolution "${RESOLUTION}"
+        --base-dir "${OUTPUT_DIR}"
+        --adata-path "${OUTPUT_PATH_ADATA}"
+        --image-path "${OUTPUT_PATH_IMG}"
+        --name "Example"
+        --zoom -3.2
+        --visualize-as-multiplex
+        --cluster-key "${CLUSTER_KEY}"
         --embedding-key "${EMBEDDING_KEY}"
+      )
+      if [[ "${S3}" == "true" ]]; then
+        CONFIG_ARGS+=(--bucket-output-dir "${BUCKET_OUTPUT_DIR}")
+      fi
+
+      python "${SCRIPT_DIR}/create_vitessce_config.py" "${CONFIG_ARGS[@]}"
     done
   done
 done

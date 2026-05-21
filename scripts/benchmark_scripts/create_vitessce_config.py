@@ -57,11 +57,12 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--bucket-output-dir",
-        required=True,
+        default=None,
         help=(
-            "Object-storage destination directory. The local base-dir folder "
-            "is copied into this destination via Globus, and config_s3.json "
-            "points to data under the public bucket URL."
+            "Optional object-storage destination directory. When provided, "
+            "the local base-dir folder is copied into this destination via "
+            "Globus, and config_s3.json points to data under the public "
+            "bucket URL. Omit to write only config_local.json."
         ),
     )
     parser.add_argument(
@@ -197,9 +198,11 @@ def main() -> int:
     base_dir = Path(args.base_dir)
     adata_path = Path(args.adata_path)
     image_path = Path(args.image_path) if args.image_path is not None else None
-    bucket_output_dir = args.bucket_output_dir.strip()
-    if not bucket_output_dir:
-        raise ValueError("--bucket-output-dir must not be empty.")
+    bucket_output_dir = (
+        args.bucket_output_dir.strip() if args.bucket_output_dir is not None else None
+    )
+    if args.bucket_output_dir is not None and not bucket_output_dir:
+        raise ValueError("--bucket-output-dir must not be empty when provided.")
 
     local_config_path = base_dir / "config_local.json"
     s3_config_path = base_dir / "config_s3.json"
@@ -217,7 +220,7 @@ def main() -> int:
         return 1
     if local_config_path.exists():
         logger.warning("Output exists, overwriting: {}", local_config_path)
-    if s3_config_path.exists():
+    if bucket_output_dir is not None and s3_config_path.exists():
         logger.warning("Output exists, overwriting: {}", s3_config_path)
 
     adata = read_zarr(adata_path)
@@ -231,29 +234,6 @@ def main() -> int:
     local_image_source = (
         _relative_to_base_or_str(image_path, base_dir)
         if image_path is not None
-        else None
-    )
-
-    adata_relative_path = _relative_to_base(
-        adata_path,
-        base_dir,
-        "adata-path",
-    )
-    image_relative_path = (
-        _relative_to_base(image_path, base_dir, "image-path")
-        if image_path is not None
-        else None
-    )
-    bucket_base_dir_url = _join_url(
-        URL_S3,
-        S3_PATH,
-        bucket_output_dir,
-        base_dir.resolve().name,
-    )
-    s3_adata_source = _join_url(bucket_base_dir_url, adata_relative_path.as_posix())
-    s3_image_source = (
-        _join_url(bucket_base_dir_url, image_relative_path.as_posix())
-        if image_relative_path is not None
         else None
     )
 
@@ -280,36 +260,62 @@ def main() -> int:
         qc_obs_feature_keys=args.qc_obs_feature_keys,
     )
 
-    vc_s3 = hpv.seq_based_from_split_sources(
-        img_source=s3_image_source,
-        adata_source=s3_adata_source,
-        name=args.name,
-        base_dir=None,
-        center=(center_x, center_y),
-        zoom=args.zoom,
-        visualize_as_rgb=not args.visualize_as_multiplex,
-        emb_radius_mode="auto",
-        spot_radius_size_micron=spot_radius_micron,
-        cluster_key=args.cluster_key,
-        cluster_key_display_name="Leiden",
-        embedding_key=args.embedding_key,
-        qc_obs_feature_keys=args.qc_obs_feature_keys,
-    )
-
     config_local_dict = vc_local.to_dict(base_url=str(base_dir))
-    config_s3_dict = vc_s3.to_dict(base_url=None)
 
     base_dir.mkdir(parents=True, exist_ok=True)
     with local_config_path.open("w", encoding="utf-8") as f:
         json.dump(config_local_dict, f, indent=2)
-    with s3_config_path.open("w", encoding="utf-8") as f:
-        json.dump(config_s3_dict, f, indent=2)
 
     logger.info("Wrote local config to {}", local_config_path)
-    logger.info("Wrote S3 config to {}", s3_config_path)
+    if bucket_output_dir is not None:
+        adata_relative_path = _relative_to_base(
+            adata_path,
+            base_dir,
+            "adata-path",
+        )
+        image_relative_path = (
+            _relative_to_base(image_path, base_dir, "image-path")
+            if image_path is not None
+            else None
+        )
+        bucket_base_dir_url = _join_url(
+            URL_S3,
+            S3_PATH,
+            bucket_output_dir,
+            base_dir.resolve().name,
+        )
+        s3_adata_source = _join_url(
+            bucket_base_dir_url,
+            adata_relative_path.as_posix(),
+        )
+        s3_image_source = (
+            _join_url(bucket_base_dir_url, image_relative_path.as_posix())
+            if image_relative_path is not None
+            else None
+        )
 
-    transfer_result = _copy_base_dir_to_bucket(base_dir, bucket_output_dir)
-    logger.info("Submitted Globus transfer: {}", transfer_result)
+        vc_s3 = hpv.seq_based_from_split_sources(
+            img_source=s3_image_source,
+            adata_source=s3_adata_source,
+            name=args.name,
+            base_dir=None,
+            center=(center_x, center_y),
+            zoom=args.zoom,
+            visualize_as_rgb=not args.visualize_as_multiplex,
+            emb_radius_mode="auto",
+            spot_radius_size_micron=spot_radius_micron,
+            cluster_key=args.cluster_key,
+            cluster_key_display_name="Leiden",
+            embedding_key=args.embedding_key,
+            qc_obs_feature_keys=args.qc_obs_feature_keys,
+        )
+        config_s3_dict = vc_s3.to_dict(base_url=None)
+        with s3_config_path.open("w", encoding="utf-8") as f:
+            json.dump(config_s3_dict, f, indent=2)
+        logger.info("Wrote S3 config to {}", s3_config_path)
+
+        transfer_result = _copy_base_dir_to_bucket(base_dir, bucket_output_dir)
+        logger.info("Submitted Globus transfer: {}", transfer_result)
 
     return 0
 
