@@ -75,6 +75,7 @@ for PLATFORM in "${PLATFORMS_TO_RUN[@]}"; do
         --output-path-adata "${OUTPUT_PATH_ADATA}" \
         --output-path-img "${OUTPUT_PATH_IMG}" \
         --image-layer "${IMAGE_LAYER}" \
+        --exclude_mt \
         --microns-per-pixel "${MICRONS_PER_PIXEL}" \
         "${TO_COPY_ANNOTATIONS_ARG[@]}"
     done
@@ -109,6 +110,10 @@ for PLATFORM in "${PLATFORMS_TO_RUN[@]}"; do
         --name "Example"
         --zoom -3.2
         --visualize-as-multiplex
+        --qc-obs-feature-keys
+        "total_counts"
+        "n_genes_by_counts"
+        "pct_counts_in_top_50_genes"
         --cluster-key "${CLUSTER_KEY}"
         --embedding-key "${EMBEDDING_KEY}"
       )
