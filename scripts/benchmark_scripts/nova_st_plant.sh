@@ -11,24 +11,15 @@ PLATFORMS_TO_RUN=("Nova-ST")
 # PLATFORMS_TO_RUN=("BMK_S1000")
 
 NOVA_EXPERIMENT_NAMES=(
-  "Exp93-sampleSPC002"
-  "Exp100-sampleSPC004"
-  "Exp65-sampleSPC014"
-  "Exp93-sampleSPC022"
+  "Exp100-samplePSB"
 )
 
 declare -A NOVA_MICRONS_PER_PIXEL_BY_EXPERIMENT=(
-  ["Exp93-sampleSPC002"]="1.0"
-  ["Exp100-sampleSPC004"]="1.0" 
-  ["Exp65-sampleSPC014"]="1.0"
-  ["Exp93-sampleSPC022"]="1.0"
+  ["Exp100-samplePSB"]="1.0"
 )
 
 declare -A NOVA_PLATFORM_BY_EXPERIMENT=(
-  ["Exp93-sampleSPC002"]="Nova-ST"
-  ["Exp100-sampleSPC004"]="Nova-ST"
-  ["Exp65-sampleSPC014"]="Nova-ST"
-  ["Exp93-sampleSPC022"]="Nova-ST"
+  ["Exp100-samplePSB"]="Nova-ST"
 )
 
 #RESOLUTIONS=("02" "08" "16" "20" "120")
@@ -62,7 +53,7 @@ for PLATFORM in "${PLATFORMS_TO_RUN[@]}"; do
     BUCKET_OUTPUT_BASE_DIR="${PLATFORM}/${EXPERIMENT_NAME}/$(basename "${OUTPUT_BASE_DIR}")"
 
     SDATA_PATH="${INPUT_DIR}/sdata.zarr"
-    IMAGE_LAYER="${EXPERIMENT_NAME}_100M_image"
+    IMAGE_LAYER="${EXPERIMENT_NAME}_100M_CFW"
 
     # need zarr3 environment for conversion
     source /data/groups/technologies/spatial.catalyst/Arne/harpy_vitessce/.venv_harpy_vitessce_zarr3/bin/activate
@@ -83,6 +74,7 @@ for PLATFORM in "${PLATFORMS_TO_RUN[@]}"; do
         --sdata-path "${SDATA_PATH}" \
         --output-path-adata "${OUTPUT_PATH_ADATA}" \
         --output-path-img "${OUTPUT_PATH_IMG}" \
+        --exclude_mt \
         --image-layer "${IMAGE_LAYER}" \
         --microns-per-pixel "${MICRONS_PER_PIXEL}" \
         "${TO_COPY_ANNOTATIONS_ARG[@]}"
@@ -113,12 +105,12 @@ for PLATFORM in "${PLATFORMS_TO_RUN[@]}"; do
         --image-path "${OUTPUT_PATH_IMG}"
         --name "Example"
         --zoom -3.2
+        --visualize-as-multiplex
         --qc-obs-feature-keys
         "total_counts"
         "n_genes_by_counts"
-        "total_counts_mt"
-        "pct_counts_mt"
         "pct_counts_in_top_50_genes"
+        --channel-windows 0 1600
         --cluster-key "${CLUSTER_KEY}"
         --embedding-key "${EMBEDDING_KEY}"
       )
