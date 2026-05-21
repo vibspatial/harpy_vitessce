@@ -3,7 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-S3=true
+S3=False
 
 PLATFORMS_TO_RUN=("Nova-ST")
 # Examples:
@@ -33,7 +33,7 @@ declare -A NOVA_PLATFORM_BY_EXPERIMENT=(
 
 #RESOLUTIONS=("02" "08" "16" "20" "120")
 
-RESOLUTIONS=( "20" "120")
+RESOLUTIONS=( "20")
 
 for PLATFORM in "${PLATFORMS_TO_RUN[@]}"; do
   EXPERIMENT_NAMES=("${NOVA_EXPERIMENT_NAMES[@]}")
