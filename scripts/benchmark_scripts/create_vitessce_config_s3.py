@@ -17,6 +17,20 @@ def _none_or_str(value: str | None) -> str | None:
     return value
 
 
+def _parse_channel_windows(
+    values: list[float] | None,
+) -> tuple[tuple[float, float], ...] | None:
+    if values is None:
+        return None
+    if len(values) % 2 != 0:
+        raise ValueError(
+            "--channel-windows expects an even number of values: min max [min max ...]."
+        )
+    return tuple(
+        (float(values[i]), float(values[i + 1])) for i in range(0, len(values), 2)
+    )
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Create a Vitessce config JSON from converted zarr inputs."
@@ -99,6 +113,16 @@ def parse_args() -> argparse.Namespace:
         ],
         help="obs keys to expose as QC features (space-separated list).",
     )
+    parser.add_argument(
+        "--channel-windows",
+        nargs="*",
+        type=float,
+        default=None,
+        help=(
+            "Optional per-channel intensity windows as flat min/max pairs, "
+            "e.g. --channel-windows 0 500 10 800. Defaults to None."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -146,6 +170,7 @@ def main() -> int:
     )
 
     resolution = float(args.resolution)
+    channel_windows = _parse_channel_windows(args.channel_windows)
 
     if resolution == 20 or resolution == 120:
         spot_radius_micron = np.sqrt(3) / 2 * (resolution // 2)
@@ -160,6 +185,7 @@ def main() -> int:
         center=(center_x, center_y),
         zoom=args.zoom,
         visualize_as_rgb=not args.visualize_as_multiplex,
+        channel_windows=channel_windows,
         emb_radius_mode="auto",
         spot_radius_size_micron=spot_radius_micron,
         cluster_key=args.cluster_key,

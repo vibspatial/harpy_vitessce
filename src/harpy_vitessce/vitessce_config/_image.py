@@ -59,6 +59,7 @@ def build_image_layer_config(
     visualize_as_rgb: bool = True,
     layer_opacity: float = 1.0,
     palette: Sequence[str] | None = None,
+    channel_windows: tuple[tuple[float, float], ...] | None = None,
 ) -> dict[str, object]:
     """
     Build the Vitessce `imageLayer` coordination entry for the image.
@@ -77,6 +78,9 @@ def build_image_layer_config(
         Optional list of channel colors in hex format (``"#RRGGBB"``).
         Colors are assigned by channel position and repeated cyclically when
         fewer colors than channels are provided.
+    channel_windows
+        Optional per-channel intensity windows as ``((min, max), ...)``.
+        Ignored in RGB mode.
 
     Returns
     -------
@@ -115,8 +119,19 @@ def build_image_layer_config(
                 "the `palette` parameter is ignored in RGB mode.",
                 len(palette),
             )
+        if channel_windows is not None and len(channel_windows) > 0:
+            logger.warning(
+                "Received {} channel window(s), but visualize_as_rgb=True; "
+                "the `channel_windows` parameter is ignored in RGB mode.",
+                len(channel_windows),
+            )
         image_layer["photometricInterpretation"] = "RGB"
         return image_layer
+
+    resolved_channel_windows = _resolve_channel_windows(
+        channel_windows=channel_windows,
+        selected_channels=selected_channels,
+    )
 
     if len(selected_channels) > MAX_INITIAL_CHANNELS:
         logger.warning(
@@ -129,6 +144,8 @@ def build_image_layer_config(
             MAX_INITIAL_CHANNELS,
         )
         selected_channels = selected_channels[:MAX_INITIAL_CHANNELS]
+        if resolved_channel_windows is not None:
+            resolved_channel_windows = resolved_channel_windows[:MAX_INITIAL_CHANNELS]
 
     palette_rgb = _resolve_palette(palette)
     no_palette_provided = palette is None or len(palette) == 0
@@ -154,13 +171,50 @@ def build_image_layer_config(
                     else _channel_color(pos, palette_rgb)
                 ),
                 "spatialChannelVisible": True,
-                "spatialChannelWindow": None,
+                "spatialChannelWindow": (
+                    None
+                    if resolved_channel_windows is None
+                    else resolved_channel_windows[pos]
+                ),
             }
             for pos, channel in enumerate(selected_channels)
         ]
     )
     image_layer["photometricInterpretation"] = "BlackIsZero"
     return image_layer
+
+
+def _resolve_channel_windows(
+    *,
+    channel_windows: tuple[tuple[float, float], ...] | None,
+    selected_channels: Sequence[int | str],
+) -> list[list[float]] | None:
+    if channel_windows is None:
+        return None
+
+    if len(channel_windows) != len(selected_channels):
+        raise ValueError(
+            "channel_windows must contain one (min, max) window per selected channel. "
+            f"Got {len(channel_windows)} window(s) for {len(selected_channels)} channel(s)."
+        )
+
+    resolved_windows: list[list[float]] = []
+    for pos, window in enumerate(channel_windows):
+        if len(window) != 2:
+            raise ValueError(
+                f"channel_windows[{pos}] must contain exactly two values: (min, max)."
+            )
+        window_min = float(window[0])
+        window_max = float(window[1])
+        if not np.isfinite(window_min) or not np.isfinite(window_max):
+            raise ValueError(f"channel_windows[{pos}] values must be finite.")
+        if window_min >= window_max:
+            raise ValueError(
+                f"channel_windows[{pos}] must satisfy min < max; got {window}."
+            )
+        resolved_windows.append([window_min, window_max])
+
+    return resolved_windows
 
 
 def _resolve_axis_names(
