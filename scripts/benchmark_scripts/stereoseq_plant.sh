@@ -11,24 +11,15 @@ PLATFORMS_TO_RUN=("Stereo-Seq")
 # PLATFORMS_TO_RUN=("Stereo-Seq")
 
 STEREO_EXPERIMENT_NAMES=(
-  "spc002"
-  "spc004"
-  "spc014"
-  "spc022"
+  "psb"
 )
 
 declare -A STEREO_MICRONS_PER_PIXEL_BY_EXPERIMENT=(
-  ["spc002"]="0.5"
-  ["spc004"]="0.5"
-  ["spc014"]="0.5"
-  ["spc022"]="0.5"
+  ["psb"]="0.5"
 )
 
 declare -A STEREO_PLATFORM_BY_EXPERIMENT=(
-  ["spc002"]="Stereo-Seq"
-  ["spc004"]="Stereo-Seq"
-  ["spc014"]="Stereo-Seq"
-  ["spc022"]="Stereo-Seq"
+  ["psb"]="Stereo-Seq"
 )
 
 #RESOLUTIONS=("02" "08" "16" "20" "120")
@@ -57,13 +48,12 @@ for PLATFORM in "${PLATFORMS_TO_RUN[@]}"; do
 
     BASE_DIR="/data/groups/technologies/spatial.catalyst/Projects/2024-07-UTBenchmark-SpC/data/processed/${PLATFORM}/${EXPERIMENT_NAME}/subsampled_100M"
     INPUT_DIR="${BASE_DIR}/harpy"
-    OUTPUT_BASE_DIR=/data/groups/technologies/spatial.catalyst/Arne/UTbenchmark/${PLATFORM}/${EXPERIMENT_NAME}/vitessce # for testing
+    OUTPUT_BASE_DIR=/data/groups/technologies/spatial.catalyst/Arne/UTbenchmark/${PLATFORM}/${EXPERIMENT_NAME}/vitessce
     #OUTPUT_BASE_DIR="${BASE_DIR}/harpy_vitessce"
     BUCKET_OUTPUT_BASE_DIR="${PLATFORM}/${EXPERIMENT_NAME}/$(basename "${OUTPUT_BASE_DIR}")"
 
     SDATA_PATH="${INPUT_DIR}/sdata.zarr"
-    IMAGE_LAYER="${EXPERIMENT_NAME}_image"
-    IMAGE_LAYER="${IMAGE_LAYER,,}" # make it lowercase
+    IMAGE_LAYER="${EXPERIMENT_NAME}_CFW"
 
     # need zarr3 environment for conversion
     source /data/groups/technologies/spatial.catalyst/Arne/harpy_vitessce/.venv_harpy_vitessce_zarr3/bin/activate
@@ -84,6 +74,7 @@ for PLATFORM in "${PLATFORMS_TO_RUN[@]}"; do
         --sdata-path "${SDATA_PATH}" \
         --output-path-adata "${OUTPUT_PATH_ADATA}" \
         --output-path-img "${OUTPUT_PATH_IMG}" \
+        --exclude_mt \
         --image-layer "${IMAGE_LAYER}" \
         --microns-per-pixel "${MICRONS_PER_PIXEL}" \
         "${TO_COPY_ANNOTATIONS_ARG[@]}"
@@ -118,8 +109,6 @@ for PLATFORM in "${PLATFORMS_TO_RUN[@]}"; do
         --qc-obs-feature-keys
         "total_counts"
         "n_genes_by_counts"
-        "total_counts_mt"
-        "pct_counts_mt"
         "pct_counts_in_top_50_genes"
         --cluster-key "${CLUSTER_KEY}"
         --embedding-key "${EMBEDDING_KEY}"
