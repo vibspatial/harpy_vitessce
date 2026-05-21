@@ -5,33 +5,21 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 S3=false
 
-PLATFORMS_TO_RUN=("BMK_S1000" "BMK_S3000")
+PLATFORMS_TO_RUN=("BMK_S3000")
 # Examples:
 # PLATFORMS_TO_RUN=("BMK_S3000")
 # PLATFORMS_TO_RUN=("BMK_S1000")
 
 BMK_EXPERIMENT_NAMES=(
-  "Exp100"
-  "Exp101"
-  "Exp99"
-  "Exp102"
-  "exp74"
+  "psb"
 )
 
 declare -A BMK_MICRONS_PER_PIXEL_BY_EXPERIMENT=(
-  ["Exp100"]="0.340"
-  ["Exp101"]="0.340" 
-  ["Exp99"]="0.340"
-  ["Exp102"]="0.340"
-  ["exp74"]="0.341"
+  ["psb"]="0.340"
 )
 
 declare -A BMK_PLATFORM_BY_EXPERIMENT=(
-  ["Exp100"]="BMK_S3000"
-  ["Exp101"]="BMK_S3000"
-  ["Exp99"]="BMK_S3000"
-  ["Exp102"]="BMK_S3000"
-  ["exp74"]="BMK_S1000"
+  ["psb"]="BMK_S3000"
 )
 
 #RESOLUTIONS=("02" "08" "16" "20" "120")
@@ -65,8 +53,7 @@ for PLATFORM in "${PLATFORMS_TO_RUN[@]}"; do
     BUCKET_OUTPUT_BASE_DIR="${PLATFORM}/${EXPERIMENT_NAME}/$(basename "${OUTPUT_BASE_DIR}")"
 
     SDATA_PATH="${INPUT_DIR}/sdata.zarr"
-    IMAGE_LAYER="${EXPERIMENT_NAME}_he"
-    IMAGE_LAYER="${IMAGE_LAYER,,}" # make it lowercase
+    IMAGE_LAYER="${EXPERIMENT_NAME}_CFW"
 
     # need zarr3 environment for conversion
     source /data/groups/technologies/spatial.catalyst/Arne/harpy_vitessce/.venv_harpy_vitessce_zarr3/bin/activate
@@ -88,6 +75,7 @@ for PLATFORM in "${PLATFORMS_TO_RUN[@]}"; do
         --output-path-adata "${OUTPUT_PATH_ADATA}" \
         --output-path-img "${OUTPUT_PATH_IMG}" \
         --image-layer "${IMAGE_LAYER}" \
+        --exclude_mt \
         --microns-per-pixel "${MICRONS_PER_PIXEL}" \
         "${TO_COPY_ANNOTATIONS_ARG[@]}"
     done
@@ -117,11 +105,10 @@ for PLATFORM in "${PLATFORMS_TO_RUN[@]}"; do
         --image-path "${OUTPUT_PATH_IMG}"
         --name "Example"
         --zoom -3.2
+        --visualize-as-multiplex
         --qc-obs-feature-keys
         "total_counts"
         "n_genes_by_counts"
-        "total_counts_mt"
-        "pct_counts_mt"
         "pct_counts_in_top_50_genes"
         --cluster-key "${CLUSTER_KEY}"
         --embedding-key "${EMBEDDING_KEY}"
