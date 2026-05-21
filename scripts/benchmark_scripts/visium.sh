@@ -3,44 +3,36 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-S3=False
+S3=false
 
-PLATFORMS_TO_RUN=("Nova-ST")
-# Examples:
-# PLATFORMS_TO_RUN=("BMK_S3000")
-# PLATFORMS_TO_RUN=("BMK_S1000")
+PLATFORMS_TO_RUN=("Visium")
 
-NOVA_EXPERIMENT_NAMES=(
-  "Exp93-sampleSPC002"
-  "Exp100-sampleSPC004"
-  "Exp65-sampleSPC014"
-  "Exp93-sampleSPC022"
+EXPERIMENT_NAMES=(
+  "SCA013"
+  "SCA014"
+  "SCA015"
+  "SCA016"
 )
 
-declare -A NOVA_MICRONS_PER_PIXEL_BY_EXPERIMENT=(
-  ["Exp93-sampleSPC002"]="1.0"
-  ["Exp100-sampleSPC004"]="1.0" 
-  ["Exp65-sampleSPC014"]="1.0"
-  ["Exp93-sampleSPC022"]="1.0"
+declare -A MICRONS_PER_PIXEL_BY_EXPERIMENT=(
+  ["SCA013"]="0.442"
+  ["SCA014"]="0.442"
+  ["SCA015"]="0.442"
+  ["SCA016"]="0.442"
 )
 
-declare -A NOVA_PLATFORM_BY_EXPERIMENT=(
-  ["Exp93-sampleSPC002"]="Nova-ST"
-  ["Exp100-sampleSPC004"]="Nova-ST"
-  ["Exp65-sampleSPC014"]="Nova-ST"
-  ["Exp93-sampleSPC022"]="Nova-ST"
+declare -A PLATFORM_BY_EXPERIMENT=(
+  ["SCA013"]="Visium"
+  ["SCA014"]="Visium"
+  ["SCA015"]="Visium"
+  ["SCA016"]="Visium"
 )
 
-#RESOLUTIONS=("02" "08" "16" "20" "120")
-
-RESOLUTIONS=( "20")
+RESOLUTIONS=("120")
 
 for PLATFORM in "${PLATFORMS_TO_RUN[@]}"; do
-  EXPERIMENT_NAMES=("${NOVA_EXPERIMENT_NAMES[@]}")
-  declare -n MICRONS_PER_PIXEL_BY_EXPERIMENT=NOVA_MICRONS_PER_PIXEL_BY_EXPERIMENT
-
   for EXPERIMENT_NAME in "${EXPERIMENT_NAMES[@]}"; do
-    EXPERIMENT_PLATFORM="${NOVA_PLATFORM_BY_EXPERIMENT[${EXPERIMENT_NAME}]:-}"
+    EXPERIMENT_PLATFORM="${PLATFORM_BY_EXPERIMENT[${EXPERIMENT_NAME}]:-}"
     if [[ -z "${EXPERIMENT_PLATFORM}" ]]; then
       echo "Missing platform value for experiment ${EXPERIMENT_NAME}" >&2
       exit 1
@@ -57,12 +49,13 @@ for PLATFORM in "${PLATFORMS_TO_RUN[@]}"; do
 
     BASE_DIR="/data/groups/technologies/spatial.catalyst/Projects/2024-07-UTBenchmark-SpC/data/processed/${PLATFORM}/${EXPERIMENT_NAME}/subsampled_100M"
     INPUT_DIR="${BASE_DIR}/harpy"
-    OUTPUT_BASE_DIR=/data/groups/technologies/spatial.catalyst/Arne/UTbenchmark/${PLATFORM}/${EXPERIMENT_NAME}/vitessce # for testing
-    #OUTPUT_BASE_DIR="${BASE_DIR}/harpy_vitessce"
+    # OUTPUT_BASE_DIR="${BASE_DIR}/vitessce"
+    OUTPUT_BASE_DIR=/data/groups/technologies/spatial.catalyst/Arne/UTbenchmark/${PLATFORM}/${EXPERIMENT_NAME}/vitessce
+
     BUCKET_OUTPUT_BASE_DIR="${PLATFORM}/${EXPERIMENT_NAME}/$(basename "${OUTPUT_BASE_DIR}")"
 
     SDATA_PATH="${INPUT_DIR}/sdata.zarr"
-    IMAGE_LAYER="${EXPERIMENT_NAME}_100M_image"
+    IMAGE_LAYER="${EXPERIMENT_NAME}_full_image"
 
     # need zarr3 environment for conversion
     source /data/groups/technologies/spatial.catalyst/Arne/harpy_vitessce/.venv_harpy_vitessce_zarr3/bin/activate

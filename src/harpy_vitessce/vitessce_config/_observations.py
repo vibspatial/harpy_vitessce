@@ -275,6 +275,7 @@ def _build_shared_visualization(
     zoom: float | None,
     channels: Sequence[int | str] | None,
     palette: Sequence[str] | None,
+    channel_windows: tuple[tuple[float, float], ...] | None,
     layer_opacity: float,
     segmentation_color: list[int] | None,
     segmentation_filled: bool,
@@ -528,6 +529,7 @@ def _build_shared_visualization(
         file_uid=file_uuid,
         channels=channels,
         palette=palette,
+        channel_windows=channel_windows,
         visualize_as_rgb=False,
         layer_opacity=layer_opacity,
     )
@@ -795,6 +797,7 @@ def _from_spatialdata(
     zoom: float | None = -4,
     channels: Sequence[int | str] | None = None,
     palette: Sequence[str] | None = None,
+    channel_windows: tuple[tuple[float, float], ...] | None = None,
     layer_opacity: float = 1.0,
     segmentation_color: str | None = None,
     segmentation_filled: bool = True,
@@ -855,6 +858,11 @@ def _from_spatialdata(
         Entries can be integer channel indices or channel names.
     palette
         Optional list of channel colors in ``\"#RRGGBB\"`` format.
+    channel_windows
+        Optional per-channel intensity windows as ``((min, max), ...)`` used
+        by position for selected channels.
+        If ``channels`` is ``None``, one window is expected for the default
+        selected channel ``[0]``.
     layer_opacity
         Opacity of the image layer in ``[0, 1]``.
     segmentation_color
@@ -988,6 +996,7 @@ def _from_spatialdata(
         zoom=zoom,
         channels=channels,
         palette=palette,
+        channel_windows=channel_windows,
         layer_opacity=layer_opacity,
         segmentation_color=normalized_segmentation_color,
         segmentation_filled=segmentation_filled,
@@ -1010,6 +1019,7 @@ def _from_split_sources(
     zoom: float | None = -4,
     channels: Sequence[int | str] | None = None,
     palette: Sequence[str] | None = None,
+    channel_windows: tuple[tuple[float, float], ...] | None = None,
     layer_opacity: float = 1.0,
     segmentation_color: str | None = None,
     segmentation_filled: bool = True,
@@ -1066,6 +1076,11 @@ def _from_split_sources(
         Entries can be integer channel indices or channel names.
     palette
         Optional list of channel colors in ``\"#RRGGBB\"`` format.
+    channel_windows
+        Optional per-channel intensity windows as ``((min, max), ...)`` used
+        by position for selected channels.
+        If ``channels`` is ``None``, one window is expected for the default
+        selected channel ``[0]``.
     layer_opacity
         Opacity of the image layer in ``[0, 1]``.
     segmentation_color
@@ -1261,6 +1276,7 @@ def _from_split_sources(
         zoom=zoom,
         channels=channels,
         palette=palette,
+        channel_windows=channel_windows,
         layer_opacity=layer_opacity,
         segmentation_color=normalized_segmentation_color,
         segmentation_filled=segmentation_filled,

@@ -336,6 +336,7 @@ def _build_seqbased_visualization(
     visualize_as_rgb: bool,
     channels: Sequence[int | str] | None,
     palette: Sequence[str] | None,
+    channel_windows: tuple[tuple[float, float], ...] | None,
 ) -> None:
     spatial_zoom, spatial_target_x, spatial_target_y = vc.add_coordination(
         ct.SPATIAL_ZOOM,
@@ -497,6 +498,7 @@ def _build_seqbased_visualization(
             file_uid=file_uuid,
             channels=channels,
             palette=palette,
+            channel_windows=channel_windows,
             visualize_as_rgb=visualize_as_rgb,
         )
         linked_layers["imageLayer"] = CL([image_layer])
@@ -693,6 +695,7 @@ def seq_based_from_spatialdata(
     visualize_as_rgb: bool = True,
     channels: Sequence[int | str] | None = None,
     palette: Sequence[str] | None = None,
+    channel_windows: tuple[tuple[float, float], ...] | None = None,
     to_coordinate_system: str = "global",
     cluster_key: str | None = "leiden",
     cluster_key_display_name: str = "Leiden",
@@ -772,6 +775,12 @@ def seq_based_from_spatialdata(
         Optional list of channel colors in hex format (``"#RRGGBB"``) used
         by position for selected channels in non-RGB mode.
         Ignored when ``img_layer`` is ``None``.
+    channel_windows
+        Optional per-channel intensity windows as ``((min, max), ...)`` used
+        by position for selected channels in non-RGB mode.
+        Ignored when ``visualize_as_rgb=True`` or ``img_layer`` is ``None``.
+        If ``channels`` is ``None`` and ``visualize_as_rgb=False``, one window
+        is expected for the default selected channel ``[0]``.
     to_coordinate_system
         Coordinate system key passed to ``SpatialDataWrapper``.
         Used to resolve image/labels rendering in a shared coordinate system.
@@ -894,6 +903,7 @@ def seq_based_from_spatialdata(
         visualize_as_rgb=visualize_as_rgb,
         channels=channels,
         palette=palette,
+        channel_windows=channel_windows,
     )
     return vc
 
@@ -910,6 +920,7 @@ def seq_based_from_split_sources(
     visualize_as_rgb: bool = True,
     channels: Sequence[int | str] | None = None,
     palette: Sequence[str] | None = None,
+    channel_windows: tuple[tuple[float, float], ...] | None = None,
     microns_per_pixel: float | tuple[float, float] | None = None,
     coordinate_transformations: Sequence[Mapping[str, object]] | None = None,
     spot_radius_size_micron: int = 8,
@@ -975,6 +986,12 @@ def seq_based_from_split_sources(
         Optional list of channel colors in hex format (``"#RRGGBB"``) used
         by position for selected channels in non-RGB mode.
         Ignored when ``img_source`` is ``None``.
+    channel_windows
+        Optional per-channel intensity windows as ``((min, max), ...)`` used
+        by position for selected channels in non-RGB mode.
+        Ignored when ``visualize_as_rgb=True`` or ``img_source`` is ``None``.
+        If ``channels`` is ``None`` and ``visualize_as_rgb=False``, one window
+        is expected for the default selected channel ``[0]``.
     microns_per_pixel
         Convenience option to add a file-level scale transform on ``(y, x)`` of ``img_source`` when rendering.
         A scalar applies isotropically.
@@ -1134,5 +1151,6 @@ def seq_based_from_split_sources(
         visualize_as_rgb=visualize_as_rgb,
         channels=channels,
         palette=palette,
+        channel_windows=channel_windows,
     )
     return vc

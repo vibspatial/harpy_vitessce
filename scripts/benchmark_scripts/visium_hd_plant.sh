@@ -3,44 +3,30 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-S3=False
+S3=false
 
-PLATFORMS_TO_RUN=("Nova-ST")
+PLATFORMS_TO_RUN=("Visium_HD")
 # Examples:
-# PLATFORMS_TO_RUN=("BMK_S3000")
-# PLATFORMS_TO_RUN=("BMK_S1000")
+#PLATFORMS_TO_RUN=("Visium")
+# PLATFORMS_TO_RUN=("Visium_HD")
 
-NOVA_EXPERIMENT_NAMES=(
-  "Exp93-sampleSPC002"
-  "Exp100-sampleSPC004"
-  "Exp65-sampleSPC014"
-  "Exp93-sampleSPC022"
+EXPERIMENT_NAMES=(
+  "FPE010"
 )
 
-declare -A NOVA_MICRONS_PER_PIXEL_BY_EXPERIMENT=(
-  ["Exp93-sampleSPC002"]="1.0"
-  ["Exp100-sampleSPC004"]="1.0" 
-  ["Exp65-sampleSPC014"]="1.0"
-  ["Exp93-sampleSPC022"]="1.0"
+declare -A MICRONS_PER_PIXEL_BY_EXPERIMENT=(
+  ["FPE010"]="0.650"
 )
 
-declare -A NOVA_PLATFORM_BY_EXPERIMENT=(
-  ["Exp93-sampleSPC002"]="Nova-ST"
-  ["Exp100-sampleSPC004"]="Nova-ST"
-  ["Exp65-sampleSPC014"]="Nova-ST"
-  ["Exp93-sampleSPC022"]="Nova-ST"
+declare -A PLATFORM_BY_EXPERIMENT=(
+  ["FPE010"]="Visium_HD"
 )
-
-#RESOLUTIONS=("02" "08" "16" "20" "120")
 
 RESOLUTIONS=( "20")
 
 for PLATFORM in "${PLATFORMS_TO_RUN[@]}"; do
-  EXPERIMENT_NAMES=("${NOVA_EXPERIMENT_NAMES[@]}")
-  declare -n MICRONS_PER_PIXEL_BY_EXPERIMENT=NOVA_MICRONS_PER_PIXEL_BY_EXPERIMENT
-
   for EXPERIMENT_NAME in "${EXPERIMENT_NAMES[@]}"; do
-    EXPERIMENT_PLATFORM="${NOVA_PLATFORM_BY_EXPERIMENT[${EXPERIMENT_NAME}]:-}"
+    EXPERIMENT_PLATFORM="${PLATFORM_BY_EXPERIMENT[${EXPERIMENT_NAME}]:-}"
     if [[ -z "${EXPERIMENT_PLATFORM}" ]]; then
       echo "Missing platform value for experiment ${EXPERIMENT_NAME}" >&2
       exit 1
@@ -57,18 +43,23 @@ for PLATFORM in "${PLATFORMS_TO_RUN[@]}"; do
 
     BASE_DIR="/data/groups/technologies/spatial.catalyst/Projects/2024-07-UTBenchmark-SpC/data/processed/${PLATFORM}/${EXPERIMENT_NAME}/subsampled_100M"
     INPUT_DIR="${BASE_DIR}/harpy"
-    OUTPUT_BASE_DIR=/data/groups/technologies/spatial.catalyst/Arne/UTbenchmark/${PLATFORM}/${EXPERIMENT_NAME}/vitessce # for testing
-    #OUTPUT_BASE_DIR="${BASE_DIR}/harpy_vitessce"
+    # OUTPUT_BASE_DIR="${BASE_DIR}/vitessce"
+    OUTPUT_BASE_DIR=/data/groups/technologies/spatial.catalyst/Arne/UTbenchmark/${PLATFORM}/${EXPERIMENT_NAME}/vitessce
+
     BUCKET_OUTPUT_BASE_DIR="${PLATFORM}/${EXPERIMENT_NAME}/$(basename "${OUTPUT_BASE_DIR}")"
 
     SDATA_PATH="${INPUT_DIR}/sdata.zarr"
-    IMAGE_LAYER="${EXPERIMENT_NAME}_100M_image"
+    IMAGE_LAYER="${EXPERIMENT_NAME}_full_image"
 
     # need zarr3 environment for conversion
     source /data/groups/technologies/spatial.catalyst/Arne/harpy_vitessce/.venv_harpy_vitessce_zarr3/bin/activate
 
     # conversion
     for RESOLUTION in "${RESOLUTIONS[@]}"; do
+      if [[ "${PLATFORM}" == "Visium" && "${RESOLUTION}" != "20" && "${RESOLUTION}" != "120" ]]; then
+        continue
+      fi
+
       OUTPUT_DIR="${OUTPUT_BASE_DIR}/${RESOLUTION}um"
       OUTPUT_PATH_IMG="${OUTPUT_DIR}/image.ome.zarr"
       OUTPUT_PATH_ADATA="${OUTPUT_DIR}/adata_${RESOLUTION}um.zarr"
@@ -84,6 +75,7 @@ for PLATFORM in "${PLATFORMS_TO_RUN[@]}"; do
         --output-path-adata "${OUTPUT_PATH_ADATA}" \
         --output-path-img "${OUTPUT_PATH_IMG}" \
         --image-layer "${IMAGE_LAYER}" \
+        --exclude_mt \
         --microns-per-pixel "${MICRONS_PER_PIXEL}" \
         "${TO_COPY_ANNOTATIONS_ARG[@]}"
     done
@@ -93,6 +85,10 @@ for PLATFORM in "${PLATFORMS_TO_RUN[@]}"; do
 
     # create config
     for RESOLUTION in "${RESOLUTIONS[@]}"; do
+      if [[ "${PLATFORM}" == "Visium" && "${RESOLUTION}" != "20" && "${RESOLUTION}" != "120" ]]; then
+        continue
+      fi
+
       OUTPUT_DIR="${OUTPUT_BASE_DIR}/${RESOLUTION}um"
       OUTPUT_PATH_IMG="${OUTPUT_DIR}/image.ome.zarr"
       OUTPUT_PATH_ADATA="${OUTPUT_DIR}/adata_${RESOLUTION}um.zarr"
@@ -113,11 +109,10 @@ for PLATFORM in "${PLATFORMS_TO_RUN[@]}"; do
         --image-path "${OUTPUT_PATH_IMG}"
         --name "Example"
         --zoom -3.2
+        --visualize-as-multiplex
         --qc-obs-feature-keys
         "total_counts"
         "n_genes_by_counts"
-        "total_counts_mt"
-        "pct_counts_mt"
         "pct_counts_in_top_50_genes"
         --cluster-key "${CLUSTER_KEY}"
         --embedding-key "${EMBEDDING_KEY}"

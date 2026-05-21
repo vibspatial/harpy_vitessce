@@ -18,6 +18,9 @@ from harpy_vitessce.data_utils import (
 )
 
 
+MT_OBS_KEYS = {"total_counts_mt", "pct_counts_mt"}
+
+
 def _none_or_str(value: str | None) -> str | None:
     if value is None:
         return None
@@ -70,6 +73,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Copy annotations from processed hexagonal-grid AnnData into raw-count AnnData.",
     )
+    parser.add_argument(
+        "--exclude_mt",
+        action="store_true",
+        help="Exclude mitochondrial QC obs keys from the converted AnnData.",
+    )
     return parser.parse_args()
 
 
@@ -109,6 +117,9 @@ def main() -> int:
                 "pct_counts_mt",
                 "pct_counts_in_top_50_genes",
             ]
+            if args.exclude_mt:
+                obs_keys = [key for key in obs_keys if key not in MT_OBS_KEYS]
+
             adata_annotated = copy_annotations(
                 src=sdata[f"hexagonal_grid_{args.resolution}um_table_processed"],
                 tgt=sdata[f"hexagonal_grid_{args.resolution}um_table"],
@@ -124,6 +135,9 @@ def main() -> int:
                 "pct_counts_mt",
                 "pct_counts_in_top_50_genes",
             ]
+            if args.exclude_mt:
+                obs_keys = [key for key in obs_keys if key not in MT_OBS_KEYS]
+
             adata_annotated = sdata[f"square_0{args.resolution}um"]
             adata_annotated = adata_annotated[
                 adata_annotated.obs["in_tissue_annotation"] == 1

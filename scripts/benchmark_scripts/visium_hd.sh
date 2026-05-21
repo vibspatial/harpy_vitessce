@@ -11,10 +11,6 @@ PLATFORMS_TO_RUN=("Visium_HD")
 # PLATFORMS_TO_RUN=("Visium_HD")
 
 EXPERIMENT_NAMES=(
-  "SCA013"
-  "SCA014"
-  "SCA015"
-  "SCA016"
   "SCA001"
   "SCA002"
   "SCA003"
@@ -29,10 +25,6 @@ EXPERIMENT_NAMES=(
 )
 
 declare -A MICRONS_PER_PIXEL_BY_EXPERIMENT=(
-  ["SCA013"]="0.442"
-  ["SCA014"]="0.442"
-  ["SCA015"]="0.442"
-  ["SCA016"]="0.442"
   ["SCA001"]="0.2196490235773455"
   ["SCA002"]="0.21949344319707406"
   ["SCA003"]="0.4425852423681751"
@@ -47,10 +39,6 @@ declare -A MICRONS_PER_PIXEL_BY_EXPERIMENT=(
 )
 
 declare -A PLATFORM_BY_EXPERIMENT=(
-  ["SCA013"]="Visium"
-  ["SCA014"]="Visium"
-  ["SCA015"]="Visium"
-  ["SCA016"]="Visium"
   ["SCA001"]="Visium_HD"
   ["SCA002"]="Visium_HD"
   ["SCA003"]="Visium_HD"
@@ -152,6 +140,12 @@ for PLATFORM in "${PLATFORMS_TO_RUN[@]}"; do
         --image-path "${OUTPUT_PATH_IMG}"
         --name "Example"
         --zoom -3.2
+        --qc-obs-feature-keys
+        "total_counts"
+        "n_genes_by_counts"
+        "total_counts_mt"
+        "pct_counts_mt"
+        "pct_counts_in_top_50_genes"
         --cluster-key "${CLUSTER_KEY}"
         --embedding-key "${EMBEDDING_KEY}"
       )

@@ -3,7 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-S3=true
+S3=false
 
 PLATFORMS_TO_RUN=("Stereo-Seq")
 # Examples:
@@ -33,7 +33,7 @@ declare -A STEREO_PLATFORM_BY_EXPERIMENT=(
 
 #RESOLUTIONS=("02" "08" "16" "20" "120")
 
-RESOLUTIONS=( "20" "120")
+RESOLUTIONS=( "20" )
 
 for PLATFORM in "${PLATFORMS_TO_RUN[@]}"; do
   EXPERIMENT_NAMES=("${STEREO_EXPERIMENT_NAMES[@]}")
@@ -115,6 +115,13 @@ for PLATFORM in "${PLATFORMS_TO_RUN[@]}"; do
         --name "Example"
         --zoom -3.2
         --visualize-as-multiplex
+        --qc-obs-feature-keys
+        "total_counts"
+        "n_genes_by_counts"
+        "total_counts_mt"
+        "pct_counts_mt"
+        "pct_counts_in_top_50_genes"
+        --channel-windows 0 20000
         --cluster-key "${CLUSTER_KEY}"
         --embedding-key "${EMBEDDING_KEY}"
       )

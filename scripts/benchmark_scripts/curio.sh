@@ -3,7 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-S3=true
+S3=false
 
 PLATFORMS_TO_RUN=("Curio_seeker")
 # Examples:
@@ -111,6 +111,12 @@ for PLATFORM in "${PLATFORMS_TO_RUN[@]}"; do
         --image-path "None"
         --name "Example"
         --zoom -3.2
+        --qc-obs-feature-keys
+        "total_counts"
+        "n_genes_by_counts"
+        "total_counts_mt"
+        "pct_counts_mt"
+        "pct_counts_in_top_50_genes"
         --cluster-key "${CLUSTER_KEY}"
         --embedding-key "${EMBEDDING_KEY}"
       )
