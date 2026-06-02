@@ -6,10 +6,10 @@ build-backend = "setuptools.build_meta"
 name = "harpy-vitessce"
 version = "0.1.0"
 description = "Utilities for working with Harpy and Vitessce data."
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 dependencies = [
     "spatialdata",
-    "harpy-analysis",
+    "harpy-analysis @ git+https://github.com/saeyslab/harpy.git@feature/obs_write",
     "loguru",
     "lazy-loader>=0.4",
 ]
