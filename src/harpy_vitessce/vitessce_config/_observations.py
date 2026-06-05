@@ -1015,7 +1015,9 @@ def _from_spatialdata(
     segmentation_filled
         Whether segmentation shapes are filled.
     segmentation_stroke_width
-        Stroke width for segmentation outlines.
+        Stroke width used when ``segmentation_filled=False``. If segmentations
+        are initially filled, this value is still stored and applies if the
+        user toggles filled mode off in Vitessce.
     to_coordinate_system
         Coordinate system key passed to ``SpatialDataWrapper``.
         Used to resolve image/labels rendering in a shared coordinate system.
@@ -1233,7 +1235,9 @@ def _from_split_sources(
     segmentation_filled
         Whether segmentation shapes are filled.
     segmentation_stroke_width
-        Stroke width for segmentation outlines.
+        Stroke width used when ``segmentation_filled=False``. If segmentations
+        are initially filled, this value is still stored and applies if the
+        user toggles filled mode off in Vitessce.
     microns_per_pixel_image
         Convenience scale transform on image ``(y, x)`` axes.
         Mutually exclusive with ``coordinate_transformations_image``.
