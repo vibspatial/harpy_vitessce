@@ -45,6 +45,8 @@ FEATURE_TYPE_GENE = "gene"
 FEATURE_VALUE_TYPE = "value"  # this can be changed, without effect on results
 OBS_COLOR_GENE_SELECTION = "geneSelection"
 OBS_COLOR_CELL_SET_SELECTION = "cellSetSelection"
+SPOT_LAYER = "spotLayer"
+HIDDEN_SPOT_OBS_TYPE = "__hidden_spot__"
 
 
 @dataclass(frozen=True)
@@ -359,6 +361,14 @@ def _build_shared_visualization(
     if views.spatial_plot_spots is not None:
         views.spatial_plot_spots.use_coordination(
             spatial_zoom, spatial_target_x, spatial_target_y
+        )
+    if modes.adata_as_spots and views.spatial_plot is not None:
+        # Vitessce's obsSpots loader can auto-merge a spot layer at runtime.
+        # Attach an unmatched spot layer so the segmentation view stays spot-free.
+        vc.link_views_by_dict(
+            [views.spatial_plot],
+            {SPOT_LAYER: CL([{"obsType": HIDDEN_SPOT_OBS_TYPE}])},
+            scope_prefix=get_initial_coordination_scope_prefix("A", "hiddenSpots"),
         )
 
     needs_segmentation_obs_index = _needs_segmentation_obs_index(
@@ -718,7 +728,7 @@ def _build_shared_visualization(
         vc.link_views_by_dict(
             [views.spatial_plot_spots, views.layer_controller],
             {
-                "spotLayer": CL([spot_layer_channel]),
+                SPOT_LAYER: CL([spot_layer_channel]),
             },
         )
     if modes.adata_as_spots and views.spatial_plot is not None:
