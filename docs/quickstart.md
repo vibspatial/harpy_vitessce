@@ -38,9 +38,9 @@ sdata.write(tmp_dir / "sdata.zarr")
 # generate the vitessce config:
 vc = hpv.proteomics_from_spatialdata(
     sdata_path=sdata.path,
-    labels_layer="blobs_labels",
-    img_layer="blobs_multiscale_image",
-    table_layer="table",
+    labels_name="blobs_labels",
+    image_name="blobs_multiscale_image",
+    table_name="table",
     channels=[0, 1, 2],
     palette=["#1F77B4", "#FF7F0E", "#2CA02C"],
     to_coordinate_system="global",

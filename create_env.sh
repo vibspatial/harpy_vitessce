@@ -1,1 +1,1 @@
-UV_PROJECT_ENVIRONMENT=.venv uv sync --python 3.13 --locked --extra vitessce --extra docs
+UV_PROJECT_ENVIRONMENT=.venv uv sync --python 3.13 --locked --extra docs

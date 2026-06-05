@@ -29,20 +29,10 @@ For more information on Harpy, see the
 - Get ready-to-share, interactive visualizations for transcriptomics and proteomics
 - Use sensible defaults while keeping control over layout and rendering options
 
-## Installation (`uv`)
-
-Install the current `main` branch:
+## Installation
 
 ```bash
-uv venv .venv_harpy_vitessce_zarr2 --python=3.12
-source .venv_harpy_vitessce_zarr2/bin/activate
-uv pip install "harpy-vitessce[vitessce] @ git+https://github.com/vibspatial/harpy_vitessce.git@main"
-```
-
-Add it as a project dependency managed by `uv`:
-
-```bash
-uv add "harpy-vitessce[vitessce] @ git+https://github.com/vibspatial/harpy_vitessce.git@main"
+pip install harpy-vitessce
 ```
 
 ## Quick Start
