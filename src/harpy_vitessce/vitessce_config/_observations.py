@@ -45,6 +45,8 @@ FEATURE_TYPE_GENE = "gene"
 FEATURE_VALUE_TYPE = "value"  # this can be changed, without effect on results
 OBS_COLOR_GENE_SELECTION = "geneSelection"
 OBS_COLOR_CELL_SET_SELECTION = "cellSetSelection"
+SPOT_LAYER = "spotLayer"
+HIDDEN_SPOT_OBS_TYPE = "__hidden_spot__"
 
 
 @dataclass(frozen=True)
@@ -152,6 +154,22 @@ def _validate_segmentation_style(
         raise ValueError(
             "segmentation_color hex string must contain only 0-9 or A-F."
         ) from exc
+
+
+def _needs_segmentation_obs_index(
+    *,
+    modes: _Modes,
+    labels_present: bool,
+) -> bool:
+    # Workaround for a Vitessce bug: without a matrix obs index, sparse
+    # bitmask IDs can be mapped as if they were dense 1..N table rows. Exposing
+    # X is harmless for static segmentation colors, so use one broad condition.
+    return (
+        labels_present
+        and modes.has_clusters
+        and not modes.has_matrix_data
+        and not modes.adata_as_spots
+    )
 
 
 def _apply_layout(vc: VitessceConfig, *, views: _Views) -> None:
@@ -344,8 +362,25 @@ def _build_shared_visualization(
         views.spatial_plot_spots.use_coordination(
             spatial_zoom, spatial_target_x, spatial_target_y
         )
+    if modes.adata_as_spots and views.spatial_plot is not None:
+        # Vitessce's obsSpots loader can auto-merge a spot layer at runtime.
+        # Attach an unmatched spot layer so the segmentation view stays spot-free.
+        vc.link_views_by_dict(
+            [views.spatial_plot],
+            {SPOT_LAYER: CL([{"obsType": HIDDEN_SPOT_OBS_TYPE}])},
+            scope_prefix=get_initial_coordination_scope_prefix("A", "hiddenSpots"),
+        )
 
+    needs_segmentation_obs_index = _needs_segmentation_obs_index(
+        modes=modes,
+        labels_present=labels_file_uuid is not None,
+    )
     obs_color = None
+    feat_type = None
+    feat_val_type = None
+    obs_set_sel = None
+    obs_set_color = None
+    obs_highlight = None
     if modes.has_matrix_data and modes.has_clusters:
         (
             obs_type,
@@ -354,6 +389,8 @@ def _build_shared_visualization(
             obs_color,
             feat_sel,
             obs_set_sel,
+            obs_set_color,
+            obs_highlight,
         ) = vc.add_coordination(
             ct.OBS_TYPE,
             ct.FEATURE_TYPE,
@@ -361,6 +398,8 @@ def _build_shared_visualization(
             ct.OBS_COLOR_ENCODING,
             ct.FEATURE_SELECTION,
             ct.OBS_SET_SELECTION,
+            ct.OBS_SET_COLOR,
+            ct.OBS_HIGHLIGHT,
         )
         obs_type.set_value(OBS_TYPE_CELL)
         feat_type.set_value(modes.feature_type)
@@ -368,6 +407,8 @@ def _build_shared_visualization(
         obs_color.set_value(OBS_COLOR_CELL_SET_SELECTION)
         feat_sel.set_value(None)
         obs_set_sel.set_value(None)
+        obs_set_color.set_value(None)
+        obs_highlight.set_value(None)
 
         if views.spatial_plot_spots is not None:
             views.spatial_plot_spots.use_coordination(
@@ -377,6 +418,8 @@ def _build_shared_visualization(
                 obs_color,
                 feat_sel,
                 obs_set_sel,
+                obs_set_color,
+                obs_highlight,
             )
         else:
             views.spatial_plot.use_coordination(
@@ -386,6 +429,8 @@ def _build_shared_visualization(
                 obs_color,
                 feat_sel,
                 obs_set_sel,
+                obs_set_color,
+                obs_highlight,
             )
 
         if views.feature_list is not None:
@@ -397,7 +442,13 @@ def _build_shared_visualization(
                 feat_val_type,
             )
         if views.obs_sets is not None:
-            views.obs_sets.use_coordination(obs_type, obs_set_sel, obs_color)
+            views.obs_sets.use_coordination(
+                obs_type,
+                obs_set_sel,
+                obs_set_color,
+                obs_color,
+                obs_highlight,
+            )
         if views.heatmap is not None:
             views.heatmap.use_coordination(
                 obs_type,
@@ -406,6 +457,8 @@ def _build_shared_visualization(
                 feat_sel,
                 obs_color,
                 obs_set_sel,
+                obs_set_color,
+                obs_highlight,
             )
         if views.umap is not None:
             views.umap.use_coordination(
@@ -415,6 +468,8 @@ def _build_shared_visualization(
                 obs_color,
                 feat_sel,
                 obs_set_sel,
+                obs_set_color,
+                obs_highlight,
             )
     elif modes.has_matrix_data:
         (
@@ -496,23 +551,85 @@ def _build_shared_visualization(
             )
 
     elif modes.has_clusters:
-        obs_type, obs_color, obs_set_sel = vc.add_coordination(
-            ct.OBS_TYPE,
-            ct.OBS_COLOR_ENCODING,
-            ct.OBS_SET_SELECTION,
-        )
+        if needs_segmentation_obs_index:
+            # Part of the Vitessce bitmask-index workaround: the hidden
+            # obsFeatureMatrix provides the real obs index, and these scopes
+            # let the segmentation channel match that loader.
+            (
+                obs_type,
+                feat_type,
+                feat_val_type,
+                obs_color,
+                obs_set_sel,
+                obs_set_color,
+                obs_highlight,
+            ) = vc.add_coordination(
+                ct.OBS_TYPE,
+                ct.FEATURE_TYPE,
+                ct.FEATURE_VALUE_TYPE,
+                ct.OBS_COLOR_ENCODING,
+                ct.OBS_SET_SELECTION,
+                ct.OBS_SET_COLOR,
+                ct.OBS_HIGHLIGHT,
+            )
+            feat_type.set_value(modes.feature_type)
+            feat_val_type.set_value(FEATURE_VALUE_TYPE)
+        else:
+            (
+                obs_type,
+                obs_color,
+                obs_set_sel,
+                obs_set_color,
+                obs_highlight,
+            ) = vc.add_coordination(
+                ct.OBS_TYPE,
+                ct.OBS_COLOR_ENCODING,
+                ct.OBS_SET_SELECTION,
+                ct.OBS_SET_COLOR,
+                ct.OBS_HIGHLIGHT,
+            )
         obs_type.set_value(OBS_TYPE_CELL)
         obs_color.set_value(OBS_COLOR_CELL_SET_SELECTION)
         obs_set_sel.set_value(None)
+        obs_set_color.set_value(None)
+        obs_highlight.set_value(None)
 
-        if views.spatial_plot_spots is not None:
-            views.spatial_plot_spots.use_coordination(obs_type, obs_color, obs_set_sel)
-        else:
-            views.spatial_plot.use_coordination(obs_type, obs_color, obs_set_sel)
+        cluster_view_scopes = (
+            (
+                obs_type,
+                feat_type,
+                feat_val_type,
+                obs_color,
+                obs_set_sel,
+                obs_set_color,
+                obs_highlight,
+            )
+            if needs_segmentation_obs_index
+            else (
+                obs_type,
+                obs_color,
+                obs_set_sel,
+                obs_set_color,
+                obs_highlight,
+            )
+        )
+        cluster_spatial_view = (
+            views.spatial_plot_spots
+            if views.spatial_plot_spots is not None
+            else views.spatial_plot
+        )
+        assert cluster_spatial_view is not None
+        cluster_spatial_view.use_coordination(*cluster_view_scopes)
         if views.obs_sets is not None:
-            views.obs_sets.use_coordination(obs_type, obs_set_sel, obs_color)
+            views.obs_sets.use_coordination(
+                obs_type,
+                obs_set_sel,
+                obs_set_color,
+                obs_color,
+                obs_highlight,
+            )
         if views.umap is not None:
-            views.umap.use_coordination(obs_type, obs_color, obs_set_sel)
+            views.umap.use_coordination(*cluster_view_scopes)
     elif modes.has_embedding:
         (obs_type,) = vc.add_coordination(ct.OBS_TYPE)
         obs_type.set_value(OBS_TYPE_CELL)
@@ -564,6 +681,15 @@ def _build_shared_visualization(
             segmentation_channel["obsColorEncoding"] = (
                 obs_color  # should we not always color? Maybe not because rendering is not great.
             )
+            if obs_set_sel is not None:
+                segmentation_channel["obsSetSelection"] = obs_set_sel
+            if obs_set_color is not None:
+                segmentation_channel["obsSetColor"] = obs_set_color
+            if obs_highlight is not None:
+                segmentation_channel["obsHighlight"] = obs_highlight
+            if needs_segmentation_obs_index:
+                segmentation_channel["featureType"] = feat_type
+                segmentation_channel["featureValueType"] = feat_val_type
         if modes.has_matrix_data and not modes.adata_as_spots:
             segmentation_channel["featureValueColormapRange"] = [0, 1]
 
@@ -602,7 +728,7 @@ def _build_shared_visualization(
         vc.link_views_by_dict(
             [views.spatial_plot_spots, views.layer_controller],
             {
-                "spotLayer": CL([spot_layer_channel]),
+                SPOT_LAYER: CL([spot_layer_channel]),
             },
         )
     if modes.adata_as_spots and views.spatial_plot is not None:
@@ -626,16 +752,16 @@ def _add_raw_wrappers(
     vc: VitessceConfig,
     *,
     name: str,
-    img_source: str,
+    image_source: str,
     labels_source: str | None,
     adata_source: str | None,
     adata_as_spots: bool,
-    is_img_remote: bool,
+    is_image_remote: bool,
     is_labels_remote: bool,
     is_adata_remote: bool,
     coordinate_transformations_image: Sequence[Mapping[str, object]] | None,
     coordinate_transformations_mask: Sequence[Mapping[str, object]] | None,
-    spatial_key: str,
+    spatial_key: str | None,
     modes: _Modes,
     cluster_key: str | None,
     cluster_key_display_name: str,
@@ -650,7 +776,7 @@ def _add_raw_wrappers(
         img_wrapper_kwargs["coordinate_transformations"] = (
             coordinate_transformations_image
         )
-    img_wrapper_kwargs["img_url" if is_img_remote else "img_path"] = img_source
+    img_wrapper_kwargs["img_url" if is_image_remote else "img_path"] = image_source
 
     dataset = vc.add_dataset(name=name).add_object(
         ImageOmeZarrWrapper(**img_wrapper_kwargs)
@@ -673,16 +799,27 @@ def _add_raw_wrappers(
 
     if modes.needs_adata:
         assert adata_source is not None
+        # Work around a Vitessce bug where bitmask IDs fall back to dense
+        # 1..N mapping unless X exposes the real sparse obs index.
+        needs_segmentation_obs_index = _needs_segmentation_obs_index(
+            modes=modes,
+            labels_present=labels_source is not None,
+        )
+        needs_obs_feature_matrix = (
+            modes.has_matrix_data or needs_segmentation_obs_index
+        )
         adata_wrapper_kwargs: dict[str, object] = {
-            "obs_feature_matrix_path": "X" if modes.has_matrix_data else None,
+            "obs_feature_matrix_path": "X" if needs_obs_feature_matrix else None,
             "coordination_values": {"obsType": OBS_TYPE_CELL},
         }
         if adata_as_spots:
+            if spatial_key is None:
+                raise ValueError("spatial_key is required when adata_as_spots=True.")
             adata_wrapper_kwargs["obs_spots_path"] = f"obsm/{spatial_key}"
             adata_wrapper_kwargs["obs_locations_path"] = f"obsm/{spatial_key}"
-        else:
+        elif spatial_key is not None:
             adata_wrapper_kwargs["obs_locations_path"] = f"obsm/{spatial_key}"
-        if modes.has_matrix_data:
+        if needs_obs_feature_matrix:
             adata_wrapper_kwargs["coordination_values"].update(
                 {
                     "featureType": modes.feature_type,
@@ -711,9 +848,9 @@ def _add_spatialdata_wrapper(
     name: str,
     sdata_path: str,
     is_sdata_remote: bool,
-    img_layer: str,
-    labels_layer: str | None,
-    table_layer: str | None,
+    image_name: str,
+    labels_name: str | None,
+    table_name: str | None,
     to_coordinate_system: str,
     modes: _Modes,
     cluster_key: str | None,
@@ -722,15 +859,23 @@ def _add_spatialdata_wrapper(
     embedding_key_display_name: str,
 ) -> tuple[VitessceConfigDataset, str, str | None]:
     file_uuid = f"sdata_{uuid.uuid4()}"
-    labels_file_uuid: str | None = file_uuid if labels_layer is not None else None
+    labels_file_uuid: str | None = file_uuid if labels_name is not None else None
 
-    table_prefix = f"tables/{table_layer}" if table_layer is not None else None
+    table_prefix = f"tables/{table_name}" if table_name is not None else None
+    needs_segmentation_obs_index = _needs_segmentation_obs_index(
+        modes=modes,
+        labels_present=labels_name is not None,
+    )
+    needs_obs_feature_matrix = (
+        table_prefix is not None
+        and (modes.has_matrix_data or needs_segmentation_obs_index)
+    )
 
     file_coordination_values: dict[str, object] = {
         "obsType": OBS_TYPE_CELL,
         "fileUid": file_uuid,
     }
-    if modes.has_matrix_data:
+    if needs_obs_feature_matrix:
         file_coordination_values.update(
             {
                 "featureType": modes.feature_type,
@@ -740,13 +885,13 @@ def _add_spatialdata_wrapper(
 
     spatialdata_wrapper_kwargs: dict[str, object] = {
         "table_path": table_prefix,
-        "image_path": f"images/{img_layer}",
+        "image_path": f"images/{image_name}",
         "obs_segmentations_path": (
-            f"labels/{labels_layer}" if labels_layer is not None else None
+            f"labels/{labels_name}" if labels_name is not None else None
         ),
         "obs_feature_matrix_path": (
             f"{table_prefix}/X"
-            if (modes.has_matrix_data and table_prefix is not None)
+            if needs_obs_feature_matrix
             else None
         ),
         "obs_set_paths": (
@@ -759,7 +904,7 @@ def _add_spatialdata_wrapper(
             else None
         ),
         "obs_set_names": [cluster_key_display_name] if modes.has_clusters else None,
-        "region": labels_layer,
+        "region": labels_name,
         "obs_embedding_paths": (
             [f"{table_prefix}/obsm/{embedding_key}"]
             if (
@@ -786,9 +931,9 @@ def _add_spatialdata_wrapper(
 
 def _from_spatialdata(
     sdata_path: str | Path,
-    img_layer: str | None = None,
-    labels_layer: str | None = None,
-    table_layer: str | None = None,
+    image_name: str | None = None,
+    labels_name: str | None = None,
+    table_name: str | None = None,
     base_dir: str | Path | None = None,
     name: str = "Observations",
     description: str = "Observations",
@@ -819,23 +964,23 @@ def _from_spatialdata(
     ----------
     sdata_path
         Path or URL to the SpatialData zarr root.
-    img_layer
+    image_name
         Image layer name under ``images`` in SpatialData.
         Required.
-    labels_layer
+    labels_name
         Labels layer name under ``labels`` in SpatialData.
         Required when table-driven visualizations are enabled.
         When table-driven visualizations are enabled, this layer should be
-        annotated by ``table_layer`` via ``region_key`` and ``instance_key``.
-    table_layer
+        annotated by ``table_name`` via ``region_key`` and ``instance_key``.
+    table_name
         Table layer name under ``tables`` in SpatialData.
         Required when feature matrix, heatmap, clusters, or embedding
         visualizations are enabled.
-        The table is expected to annotate ``labels_layer``:
+        The table is expected to annotate ``labels_name``:
         ``region_key`` is the key in ``adata.obs`` that specifies the region
-        (i.e. the ``labels_layer``), and ``instance_key`` is the key in
+        (i.e. the ``labels_name``), and ``instance_key`` is the key in
         ``adata.obs`` that specifies the instance (i.e. instance IDs in
-        ``labels_layer``).
+        ``labels_name``).
         If this annotation metadata is unavailable, Vitessce falls back to
         linking via the table ``obs`` index. Vitessce currently applies
         JavaScript ``parseInt`` to observation indices, so values like
@@ -872,7 +1017,9 @@ def _from_spatialdata(
     segmentation_filled
         Whether segmentation shapes are filled.
     segmentation_stroke_width
-        Stroke width for segmentation outlines.
+        Stroke width used when ``segmentation_filled=False``. If segmentations
+        are initially filled, this value is still stored and applies if the
+        user toggles filled mode off in Vitessce.
     to_coordinate_system
         Coordinate system key passed to ``SpatialDataWrapper``.
         Used to resolve image/labels rendering in a shared coordinate system.
@@ -906,9 +1053,9 @@ def _from_spatialdata(
         If ``embedding_key_display_name`` is empty when ``embedding_key`` is provided.
         If ``center`` is provided but is not a 2-item tuple.
         If ``layer_opacity`` is outside ``[0, 1]``.
-        If ``img_layer`` is missing.
-        If table-driven visualization is requested but ``table_layer`` is missing.
-        If table-driven visualization is requested but ``labels_layer`` is missing.
+        If ``image_name`` is missing.
+        If table-driven visualization is requested but ``table_name`` is missing.
+        If table-driven visualization is requested but ``labels_name`` is missing.
         If ``sdata_path`` is invalid (empty or unsupported URL format).
     """
     _validate_feature_type(feature_type)
@@ -934,23 +1081,23 @@ def _from_spatialdata(
         segmentation_stroke_width=segmentation_stroke_width,
     )
 
-    if img_layer is None:
-        raise ValueError("img_layer is required when sdata is provided.")
-    if modes.needs_adata and table_layer is None:
+    if image_name is None:
+        raise ValueError("image_name is required when sdata is provided.")
+    if modes.needs_adata and table_name is None:
         raise ValueError(
-            "table_layer is required when visualize_feature_matrix=True, "
+            "table_name is required when visualize_feature_matrix=True, "
             "visualize_heatmap=True or cluster_key/embedding_key is provided."
         )
-    if modes.needs_adata and labels_layer is None:
+    if modes.needs_adata and labels_name is None:
         raise ValueError(
-            "labels_layer is required when visualize_feature_matrix=True, "
+            "labels_name is required when visualize_feature_matrix=True, "
             "visualize_heatmap=True or cluster_key/embedding_key is provided."
         )
-    if table_layer is not None and not modes.needs_adata:
+    if table_name is not None and not modes.needs_adata:
         logger.warning(
-            "table_layer was provided, but visualize_feature_matrix=False, "
+            "table_name was provided, but visualize_feature_matrix=False, "
             "visualize_heatmap=False and cluster_key/embedding_key are None; "
-            "table layer is ignored."
+            "table is ignored."
         )
 
     normalized_sdata_path, is_sdata_remote = _normalize_path_or_url(
@@ -973,9 +1120,9 @@ def _from_spatialdata(
         name=name,
         sdata_path=normalized_sdata_path,
         is_sdata_remote=is_sdata_remote,
-        img_layer=img_layer,
-        labels_layer=labels_layer,
-        table_layer=table_layer,
+        image_name=image_name,
+        labels_name=labels_name,
+        table_name=table_name,
         to_coordinate_system=to_coordinate_system,
         modes=modes,
         cluster_key=cluster_key,
@@ -1006,7 +1153,7 @@ def _from_spatialdata(
 
 
 def _from_split_sources(
-    img_source: str | Path,
+    image_source: str | Path,
     labels_source: str | Path | None = None,
     adata_source: str | Path | None = None,
     adata_as_spots: bool = False,
@@ -1030,7 +1177,7 @@ def _from_split_sources(
     coordinate_transformations_mask: Sequence[Mapping[str, object]] | None = None,
     visualize_feature_matrix: bool = False,
     visualize_heatmap: bool = False,
-    spatial_key: str = "spatial",
+    spatial_key: str | None = "spatial",
     cluster_key: str | None = None,
     cluster_key_display_name: str = "Clusters",
     embedding_key: str | None = None,
@@ -1043,7 +1190,7 @@ def _from_split_sources(
 
     Parameters
     ----------
-    img_source
+    image_source
         Path/URL to an OME-Zarr image.
         Expected axes order is ``(c, y, x)``.
     labels_source
@@ -1090,7 +1237,9 @@ def _from_split_sources(
     segmentation_filled
         Whether segmentation shapes are filled.
     segmentation_stroke_width
-        Stroke width for segmentation outlines.
+        Stroke width used when ``segmentation_filled=False``. If segmentations
+        are initially filled, this value is still stored and applies if the
+        user toggles filled mode off in Vitessce.
     microns_per_pixel_image
         Convenience scale transform on image ``(y, x)`` axes.
         Mutually exclusive with ``coordinate_transformations_image``.
@@ -1109,7 +1258,9 @@ def _from_split_sources(
         If ``True``, expose a heatmap view driven by AnnData ``X``.
     spatial_key
         Key under AnnData ``obsm`` containing per-observation spatial
-        coordinates (used as ``obsm/{spatial_key}``).
+        coordinates (used as ``obsm/{spatial_key}`` for spatial lasso and
+        spot rendering). Set to ``None`` to omit observation locations when no
+        spatial key is available. Required when ``adata_as_spots=True``.
     cluster_key
         Optional key under AnnData ``obs`` for cell-set annotations.
     cluster_key_display_name
@@ -1164,6 +1315,9 @@ def _from_split_sources(
         segmentation_stroke_width=segmentation_stroke_width,
     )
 
+    if adata_as_spots and spatial_key is None:
+        raise ValueError("spatial_key is required when adata_as_spots=True.")
+
     if not modes.needs_adata and adata_source is not None:
         logger.warning(
             "adata_source was provided, but visualize_feature_matrix=False, "
@@ -1182,8 +1336,8 @@ def _from_split_sources(
             "spot_radius_size_micron needs to be specified if adata_as_spots=True."
         )
 
-    normalized_img_source, is_img_remote = _normalize_path_or_url(
-        img_source, "img_source"
+    normalized_image_source, is_image_remote = _normalize_path_or_url(
+        image_source, "image_source"
     )
     if labels_source is not None:
         normalized_labels_source, is_labels_remote = _normalize_path_or_url(
@@ -1230,7 +1384,7 @@ def _from_split_sources(
     )
 
     all_sources_remote = (
-        is_img_remote
+        is_image_remote
         and (normalized_labels_source is None or is_labels_remote)
         and (normalized_adata_source is None or is_adata_remote)
     )
@@ -1247,10 +1401,10 @@ def _from_split_sources(
     dataset, file_uuid, labels_file_uuid = _add_raw_wrappers(
         vc,
         name=name,
-        img_source=normalized_img_source,
+        image_source=normalized_image_source,
         labels_source=normalized_labels_source,
         adata_source=normalized_adata_source,
-        is_img_remote=is_img_remote,
+        is_image_remote=is_image_remote,
         is_labels_remote=is_labels_remote,
         is_adata_remote=is_adata_remote,
         adata_as_spots=modes.adata_as_spots,

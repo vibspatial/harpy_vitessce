@@ -178,7 +178,7 @@ def main() -> int:
         spot_radius_micron = resolution // 2
 
     vc = hpv.seq_based_from_split_sources(
-        img_source=image_source,
+        image_source=image_source,
         adata_source=adata_source,
         name=args.name,
         base_dir=base_dir,

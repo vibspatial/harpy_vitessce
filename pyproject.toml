@@ -4,18 +4,18 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "harpy-vitessce"
-version = "0.1.0"
+version = "0.1.1"
 description = "Utilities for working with Harpy and Vitessce data."
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 dependencies = [
     "spatialdata",
-    "harpy-analysis",
+    "harpy-analysis @ git+https://github.com/saeyslab/harpy.git@feature/obs_write",
     "loguru",
     "lazy-loader>=0.4",
+    "vitessce[all]>=3.9.1"
 ]
 
 [project.optional-dependencies]
-vitessce = ["vitessce[all]>=3.8.0"]
 globus = [
     "globus_utilities @ git+https://github.com/ArneDefauw/globus_utilities.git@main",
     "python-dotenv",
