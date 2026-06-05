@@ -2,6 +2,9 @@
   <img src="docs/_static/logo.png" alt="harpy-vitessce logo" width="220" />
   <p><strong><span style="font-size:1.5em;">Interactive Vitessce visualizations for Harpy workflows</span></strong></p>
   <p>
+    <a href="https://pypi.org/project/harpy-vitessce/">
+      <img src="https://img.shields.io/pypi/v/harpy-vitessce.svg" alt="PyPI version" />
+    </a>
     <a href="https://harpy-vitessce.readthedocs.io/en/latest/">
       <img src="https://readthedocs.org/projects/harpy-vitessce/badge/?version=latest" alt="Docs (latest)" />
     </a>
