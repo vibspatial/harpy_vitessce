@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "harpy-vitessce"
-version = "0.1.2"
+version = "0.1.3"
 description = "Utilities for working with Harpy and Vitessce data."
 requires-python = ">=3.12"
 dependencies = [
@@ -16,10 +16,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-globus = [
-    "globus_utilities @ git+https://github.com/ArneDefauw/globus_utilities.git@main",
-    "python-dotenv",
-]
+#globus = [
+#    "globus_utilities @ git+https://github.com/ArneDefauw/globus_utilities.git@main",
+#    "python-dotenv",
+#]
 docs = [
     "sphinx>=4.5",
     "sphinx-book-theme>=1.0.0",
