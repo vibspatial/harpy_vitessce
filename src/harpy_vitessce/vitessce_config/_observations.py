@@ -761,7 +761,7 @@ def _add_raw_wrappers(
     is_adata_remote: bool,
     coordinate_transformations_image: Sequence[Mapping[str, object]] | None,
     coordinate_transformations_mask: Sequence[Mapping[str, object]] | None,
-    spatial_key: str,
+    spatial_key: str | None,
     modes: _Modes,
     cluster_key: str | None,
     cluster_key_display_name: str,
@@ -813,9 +813,11 @@ def _add_raw_wrappers(
             "coordination_values": {"obsType": OBS_TYPE_CELL},
         }
         if adata_as_spots:
+            if spatial_key is None:
+                raise ValueError("spatial_key is required when adata_as_spots=True.")
             adata_wrapper_kwargs["obs_spots_path"] = f"obsm/{spatial_key}"
             adata_wrapper_kwargs["obs_locations_path"] = f"obsm/{spatial_key}"
-        else:
+        elif spatial_key is not None:
             adata_wrapper_kwargs["obs_locations_path"] = f"obsm/{spatial_key}"
         if needs_obs_feature_matrix:
             adata_wrapper_kwargs["coordination_values"].update(
@@ -1175,7 +1177,7 @@ def _from_split_sources(
     coordinate_transformations_mask: Sequence[Mapping[str, object]] | None = None,
     visualize_feature_matrix: bool = False,
     visualize_heatmap: bool = False,
-    spatial_key: str = "spatial",
+    spatial_key: str | None = "spatial",
     cluster_key: str | None = None,
     cluster_key_display_name: str = "Clusters",
     embedding_key: str | None = None,
@@ -1256,7 +1258,9 @@ def _from_split_sources(
         If ``True``, expose a heatmap view driven by AnnData ``X``.
     spatial_key
         Key under AnnData ``obsm`` containing per-observation spatial
-        coordinates (used as ``obsm/{spatial_key}``).
+        coordinates (used as ``obsm/{spatial_key}`` for spatial lasso and
+        spot rendering). Set to ``None`` to omit observation locations when no
+        spatial key is available. Required when ``adata_as_spots=True``.
     cluster_key
         Optional key under AnnData ``obs`` for cell-set annotations.
     cluster_key_display_name
@@ -1310,6 +1314,9 @@ def _from_split_sources(
         segmentation_color=segmentation_color,
         segmentation_stroke_width=segmentation_stroke_width,
     )
+
+    if adata_as_spots and spatial_key is None:
+        raise ValueError("spatial_key is required when adata_as_spots=True.")
 
     if not modes.needs_adata and adata_source is not None:
         logger.warning(

@@ -87,7 +87,7 @@ def imgbased_transcriptomics_from_split_sources(
     coordinate_transformations_mask: Sequence[Mapping[str, object]] | None = None,
     visualize_feature_matrix: bool = False,
     visualize_heatmap: bool = False,
-    spatial_key: str = "spatial",
+    spatial_key: str | None = "spatial",
     cluster_key: str | None = None,
     cluster_key_display_name: str = "Clusters",
     embedding_key: str | None = None,
