@@ -46,7 +46,7 @@ from harpy_vitessce.vitessce_config._utils import (
 
 
 def single_channel_image(
-    img_source: str | Path,  # local path relative to base_dir or remote URL
+    image_source: str | Path,  # local path relative to base_dir or remote URL
     name: str = "Visium HD Image",
     description: str = "Visium HD image-only view",
     schema_version: str = "1.0.18",
@@ -64,7 +64,7 @@ def single_channel_image(
 
     Parameters
     ----------
-    img_source
+    image_source
         Path/URL to the OME-Zarr image. Local paths are relative to ``base_dir``
         when provided.
     name
@@ -75,7 +75,7 @@ def single_channel_image(
         Vitessce schema version.
     base_dir
         Optional base directory for relative local paths in the config.
-        Ignored when ``img_source`` is a remote URL.
+        Ignored when ``image_source`` is a remote URL.
     center
         Initial spatial target as ``(x, y)`` camera center coordinates.
         Use ``None`` to keep Vitessce defaults.
@@ -107,7 +107,10 @@ def single_channel_image(
     ValueError
         If ``center`` is provided but is not a 2-item tuple.
     """
-    img_source, is_img_remote = _normalize_path_or_url(img_source, "img_source")
+    image_source, is_image_remote = _normalize_path_or_url(
+        image_source,
+        "image_source",
+    )
     image_coordinate_transformations = _resolve_image_coordinate_transformations(
         coordinate_transformations=coordinate_transformations,
         microns_per_pixel=microns_per_pixel,
@@ -142,7 +145,9 @@ def single_channel_image(
         description=description,
         # base_dir only applies to local *_path entries.
         base_dir=(
-            None if is_img_remote else (str(base_dir) if base_dir is not None else None)
+            None
+            if is_image_remote
+            else (str(base_dir) if base_dir is not None else None)
         ),
     )
 
@@ -166,7 +171,7 @@ def single_channel_image(
         img_wrapper_kwargs["coordinate_transformations"] = (
             image_coordinate_transformations
         )
-    img_wrapper_kwargs["img_url" if is_img_remote else "img_path"] = img_source
+    img_wrapper_kwargs["img_url" if is_image_remote else "img_path"] = image_source
     dataset = vc.add_dataset(name=name).add_object(
         ImageOmeZarrWrapper(**img_wrapper_kwargs)
     )
@@ -548,9 +553,9 @@ def _add_spatialdata_wrappers(
     name: str,
     sdata_path: str,
     is_sdata_remote: bool,
-    img_layer: str | None,
-    table_layer: str,
-    labels_layer: str,
+    image_name: str | None,
+    table_name: str,
+    labels_name: str,
     to_coordinate_system: str,
     modes: _SeqBasedModes,
     cluster_key: str | None,
@@ -559,13 +564,13 @@ def _add_spatialdata_wrappers(
     embedding_display_name: str,
     qc_obs_feature_keys: tuple[str, ...],
 ) -> tuple[VitessceConfigDataset, str]:
-    table_path = f"tables/{table_layer}"
+    table_path = f"tables/{table_name}"
     file_uuid = f"seqbased_{uuid.uuid4()}"
     expression_wrapper_kwargs: dict[str, object] = {
-        "image_path": f"images/{img_layer}" if img_layer is not None else None,
+        "image_path": f"images/{image_name}" if image_name is not None else None,
         "table_path": table_path,
         "obs_feature_matrix_path": f"{table_path}/X",
-        "obs_segmentations_path": f"labels/{labels_layer}",
+        "obs_segmentations_path": f"labels/{labels_name}",
         "obs_set_paths": [f"{table_path}/obs/{cluster_key}"]
         if modes.has_clusters
         else None,
@@ -574,7 +579,7 @@ def _add_spatialdata_wrappers(
         if modes.has_embedding
         else None,
         "obs_embedding_names": [embedding_display_name] if modes.has_embedding else None,
-        "region": labels_layer,
+        "region": labels_name,
         "coordinate_system": to_coordinate_system,
         "coordination_values": {
             "obsType": OBS_TYPE_BIN,
@@ -617,9 +622,9 @@ def _add_raw_wrappers(
     vc: VitessceConfig,
     *,
     name: str,
-    img_source: str | None,
+    image_source: str | None,
     adata_source: str,
-    is_img_remote: bool,
+    is_image_remote: bool,
     is_adata_remote: bool,
     image_coordinate_transformations: Sequence[Mapping[str, object]] | None,
     spatial_key: str,
@@ -632,7 +637,7 @@ def _add_raw_wrappers(
 ) -> tuple[VitessceConfigDataset, str]:
     file_uuid = f"img_h&e_{uuid.uuid4()}"
     dataset = vc.add_dataset(name=name)
-    if img_source is not None:
+    if image_source is not None:
         img_wrapper_kwargs: dict[str, object] = {
             "coordination_values": {"fileUid": file_uuid},
         }
@@ -640,7 +645,7 @@ def _add_raw_wrappers(
             img_wrapper_kwargs["coordinate_transformations"] = (
                 image_coordinate_transformations
             )
-        img_wrapper_kwargs["img_url" if is_img_remote else "img_path"] = img_source
+        img_wrapper_kwargs["img_url" if is_image_remote else "img_path"] = image_source
         dataset.add_object(ImageOmeZarrWrapper(**img_wrapper_kwargs))
 
     expression_wrapper_kwargs: dict[str, object] = {
@@ -683,9 +688,9 @@ def _add_raw_wrappers(
 
 def seq_based_from_spatialdata(
     sdata_path: str | Path,
-    img_layer: str | None,
-    labels_layer: str,
-    table_layer: str,
+    image_name: str | None,
+    labels_name: str,
+    table_name: str,
     base_dir: str | Path | None = None,
     name: str = "Visium HD",
     description: str = "Visium HD",
@@ -716,7 +721,7 @@ def seq_based_from_spatialdata(
     :func:`seq_based_from_split_sources`.
 
     Note that this will only work if spots are square bins, because then they can be represented via a grid
-    of bin ID's (labels_layer). For hexagonal spots (e.g. Nova-ST, use :func:`harpy_vitessce.seq_based_from_split_sources`), and specify the center of the hexagons via .obsm[spatial_key]
+    of bin ID's (labels_name). For hexagonal spots (e.g. Nova-ST, use :func:`harpy_vitessce.seq_based_from_split_sources`), and specify the center of the hexagons via .obsm[spatial_key]
 
     Note that currently the SpatialDataWrapper in Vitessce does not support obs_feature_column_paths.
     So they are added using the AnnDataWrapper. Because obs_labels_path is currently ignored in AnnDataWrapper,
@@ -726,20 +731,20 @@ def seq_based_from_spatialdata(
     ----------
     sdata_path
         Path or URL to the SpatialData zarr root.
-    img_layer
+    image_name
         Optional image layer name under ``images`` in SpatialData.
         Set to ``None`` to omit image rendering.
-    labels_layer
+    labels_name
         Labels layer name under ``labels`` in SpatialData.
         Required when table-driven visualizations are enabled.
-        This layer should be annotated by ``table_layer`` via ``region_key`` and ``instance_key``.
-    table_layer
+        This layer should be annotated by ``table_name`` via ``region_key`` and ``instance_key``.
+    table_name
         Table layer name under ``tables`` in SpatialData.
-        The table is expected to annotate ``labels_layer``:
+        The table is expected to annotate ``labels_name``:
         ``region_key`` is the key in ``adata.obs`` that specifies the region
-        (i.e. the ``labels_layer``), and ``instance_key`` is the key in
+        (i.e. the ``labels_name``), and ``instance_key`` is the key in
         ``adata.obs`` that specifies the instance (i.e. instance IDs in
-        ``labels_layer``).
+        ``labels_name``).
         If this annotation metadata is unavailable, Vitessce falls back to
         linking via the table ``obs`` index. Vitessce currently applies
         JavaScript ``parseInt`` to observation indices, so values like
@@ -764,21 +769,21 @@ def seq_based_from_spatialdata(
     visualize_as_rgb
         If ``True``, render the image layer with ``photometricInterpretation="RGB"``.
         If ``False``, render with ``photometricInterpretation="BlackIsZero"``.
-        Ignored when ``img_layer`` is ``None``.
+        Ignored when ``image_name`` is ``None``.
     channels
         Initial channels rendered in the image layer.
         Entries can be integer channel indices or channel names.
         If ``None``, defaults to ``[0, 1, 2]`` when ``visualize_as_rgb=True``,
         otherwise ``[0]``.
-        Ignored when ``img_layer`` is ``None``.
+        Ignored when ``image_name`` is ``None``.
     palette
         Optional list of channel colors in hex format (``"#RRGGBB"``) used
         by position for selected channels in non-RGB mode.
-        Ignored when ``img_layer`` is ``None``.
+        Ignored when ``image_name`` is ``None``.
     channel_windows
         Optional per-channel intensity windows as ``((min, max), ...)`` used
         by position for selected channels in non-RGB mode.
-        Ignored when ``visualize_as_rgb=True`` or ``img_layer`` is ``None``.
+        Ignored when ``visualize_as_rgb=True`` or ``image_name`` is ``None``.
         If ``channels`` is ``None`` and ``visualize_as_rgb=False``, one window
         is expected for the default selected channel ``[0]``.
     to_coordinate_system
@@ -826,16 +831,15 @@ def seq_based_from_spatialdata(
         from IPython.display import display, HTML
 
         vc = visium_hd(
-            sdata_path="/your/path/sdata.zarr" # relative to base_dir
-            img_layer="your_img_layer",
-            labels_layer="your_labels_layer",
-            table_layer="your_table_layer", # index should match ID's in labels_layer, because qc_obs_feature_keys is not None.
+            image_source="/your/path/image.ome.zarr",
+            adata_source="/your/path/table.zarr",
+            spatial_key="spatial",
             qc_obs_feature_keys=("total_counts", "pct_counts_mt"),
         )
         url = vc.web_app()
         display(HTML(f'<a href="{url}" target="_blank">Open in Vitessce</a>'))
     """
-    img_layer = _normalize_optional_key(img_layer, "img_layer")
+    image_name = _normalize_optional_key(image_name, "image_name")
     cluster_key = _normalize_optional_key(cluster_key, "cluster_key")
     embedding_key = _normalize_optional_key(embedding_key, "embedding_key")
     normalized_qc_keys = _normalize_qc_keys(qc_obs_feature_keys)
@@ -873,9 +877,9 @@ def seq_based_from_spatialdata(
         name=name,
         sdata_path=normalized_sdata_path,
         is_sdata_remote=is_sdata_remote,
-        img_layer=img_layer,
-        table_layer=table_layer,
-        labels_layer=labels_layer,
+        image_name=image_name,
+        table_name=table_name,
+        labels_name=labels_name,
         to_coordinate_system=to_coordinate_system,
         modes=modes,
         cluster_key=cluster_key,
@@ -890,7 +894,7 @@ def seq_based_from_spatialdata(
         file_uuid=file_uuid,
         obs_type_value=OBS_TYPE_BIN,
         use_spot_layer=False,
-        has_image_layer=img_layer is not None,
+        has_image_layer=image_name is not None,
         spot_radius_size_micron=None,
         modes=modes,
         cluster_key_display_name=cluster_key_display_name,
@@ -909,7 +913,7 @@ def seq_based_from_spatialdata(
 
 
 def seq_based_from_split_sources(
-    img_source: str | Path | None,
+    image_source: str | Path | None,
     adata_source: str | Path,
     base_dir: str | Path | None = None,
     name: str = "Visium HD",
@@ -943,7 +947,7 @@ def seq_based_from_split_sources(
 
     Parameters
     ----------
-    img_source
+    image_source
         Optional path/URL to the OME-Zarr image. Local paths are relative to
         ``base_dir`` when provided.
         Set to ``None`` to omit image rendering.
@@ -975,34 +979,34 @@ def seq_based_from_split_sources(
     visualize_as_rgb
         If ``True``, render the image layer with ``photometricInterpretation="RGB"``.
         If ``False``, render with ``photometricInterpretation="BlackIsZero"``.
-        Ignored when ``img_source`` is ``None``.
+        Ignored when ``image_source`` is ``None``.
     channels
         Initial channels rendered in the image layer.
         Entries can be integer channel indices or channel names.
         If ``None``, defaults to ``[0, 1, 2]`` when ``visualize_as_rgb=True``,
         otherwise ``[0]``.
-        Ignored when ``img_source`` is ``None``.
+        Ignored when ``image_source`` is ``None``.
     palette
         Optional list of channel colors in hex format (``"#RRGGBB"``) used
         by position for selected channels in non-RGB mode.
-        Ignored when ``img_source`` is ``None``.
+        Ignored when ``image_source`` is ``None``.
     channel_windows
         Optional per-channel intensity windows as ``((min, max), ...)`` used
         by position for selected channels in non-RGB mode.
-        Ignored when ``visualize_as_rgb=True`` or ``img_source`` is ``None``.
+        Ignored when ``visualize_as_rgb=True`` or ``image_source`` is ``None``.
         If ``channels`` is ``None`` and ``visualize_as_rgb=False``, one window
         is expected for the default selected channel ``[0]``.
     microns_per_pixel
-        Convenience option to add a file-level scale transform on ``(y, x)`` of ``img_source`` when rendering.
+        Convenience option to add a file-level scale transform on ``(y, x)`` of ``image_source`` when rendering.
         A scalar applies isotropically.
         Values are multiplicative scale factors.
         This transform is composed *after* OME-NGFF metadata transforms.
-        Requires ``img_source``.
+        Requires ``image_source``.
     coordinate_transformations
         Raw file-level OME-NGFF coordinate transformations passed to
         ``ImageOmeZarrWrapper``.
         Mutually exclusive with ``microns_per_pixel``.
-        Requires ``img_source``.
+        Requires ``image_source``.
     cluster_key
         Key under ``obs`` used for cluster/cell-set annotations, e.g. ``"leiden"`` -> ``"obs/leiden"``.
         Set to ``None`` to disable cluster/cell-set views and color encoding.
@@ -1037,7 +1041,7 @@ def seq_based_from_split_sources(
         ``emb_radius_mode`` is not ``"auto"``/``"manual"``, or ``center`` is not a
         2-item tuple, or ``spot_radius_size_micron <= 0``, or ``emb_radius <= 0`` when
         ``emb_radius_mode="manual"``, or if image-only transform arguments are
-        provided without ``img_source``.
+        provided without ``image_source``.
 
 
     Examples
@@ -1048,9 +1052,9 @@ def seq_based_from_split_sources(
 
         vc = visium_hd(
             sdata_path="/your/path/sdata.zarr" # relative to base_dir
-            img_layer="your_img_layer",
-            labels_layer="your_labels_layer",
-            table_layer="your_table_layer", # index should match ID's in labels_layer, because qc_obs_feature_keys is not None.
+            image_name="your_image_name",
+            labels_name="your_labels_name",
+            table_name="your_table_name", # index should match ID's in labels_name, because qc_obs_feature_keys is not None.
             qc_obs_feature_keys=("total_counts", "pct_counts_mt"),
         )
         url = vc.web_app()
@@ -1077,23 +1081,23 @@ def seq_based_from_split_sources(
         zoom=zoom,
     )
 
-    if img_source is not None:
-        normalized_img_source, is_img_remote = _normalize_path_or_url(
-            img_source,
-            "img_source",
+    if image_source is not None:
+        normalized_image_source, is_image_remote = _normalize_path_or_url(
+            image_source,
+            "image_source",
         )
     else:
-        normalized_img_source = None
-        is_img_remote = False
+        normalized_image_source = None
+        is_image_remote = False
     normalized_adata_source, is_adata_remote = _normalize_path_or_url(
         adata_source,
         "adata_source",
     )
-    if normalized_img_source is None:
+    if normalized_image_source is None:
         if microns_per_pixel is not None or coordinate_transformations is not None:
             raise ValueError(
                 "microns_per_pixel and coordinate_transformations require "
-                "img_source to be provided."
+                "image_source to be provided."
             )
         image_coordinate_transformations = None
     else:
@@ -1103,7 +1107,7 @@ def seq_based_from_split_sources(
         )
 
     all_sources_remote = is_adata_remote and (
-        normalized_img_source is None or is_img_remote
+        normalized_image_source is None or is_image_remote
     )
     vc = VitessceConfig(
         name=name,
@@ -1119,9 +1123,9 @@ def seq_based_from_split_sources(
     dataset, file_uuid = _add_raw_wrappers(
         vc,
         name=name,
-        img_source=normalized_img_source,
+        image_source=normalized_image_source,
         adata_source=normalized_adata_source,
-        is_img_remote=is_img_remote,
+        is_image_remote=is_image_remote,
         is_adata_remote=is_adata_remote,
         image_coordinate_transformations=image_coordinate_transformations,
         spatial_key=spatial_key,
@@ -1138,7 +1142,7 @@ def seq_based_from_split_sources(
         file_uuid=file_uuid,
         obs_type_value=OBS_TYPE_SPOT,
         use_spot_layer=True,
-        has_image_layer=normalized_img_source is not None,
+        has_image_layer=normalized_image_source is not None,
         spot_radius_size_micron=spot_radius_size_micron,
         modes=modes,
         cluster_key_display_name=cluster_key_display_name,

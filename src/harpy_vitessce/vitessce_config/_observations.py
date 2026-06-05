@@ -752,11 +752,11 @@ def _add_raw_wrappers(
     vc: VitessceConfig,
     *,
     name: str,
-    img_source: str,
+    image_source: str,
     labels_source: str | None,
     adata_source: str | None,
     adata_as_spots: bool,
-    is_img_remote: bool,
+    is_image_remote: bool,
     is_labels_remote: bool,
     is_adata_remote: bool,
     coordinate_transformations_image: Sequence[Mapping[str, object]] | None,
@@ -776,7 +776,7 @@ def _add_raw_wrappers(
         img_wrapper_kwargs["coordinate_transformations"] = (
             coordinate_transformations_image
         )
-    img_wrapper_kwargs["img_url" if is_img_remote else "img_path"] = img_source
+    img_wrapper_kwargs["img_url" if is_image_remote else "img_path"] = image_source
 
     dataset = vc.add_dataset(name=name).add_object(
         ImageOmeZarrWrapper(**img_wrapper_kwargs)
@@ -848,9 +848,9 @@ def _add_spatialdata_wrapper(
     name: str,
     sdata_path: str,
     is_sdata_remote: bool,
-    img_layer: str,
-    labels_layer: str | None,
-    table_layer: str | None,
+    image_name: str,
+    labels_name: str | None,
+    table_name: str | None,
     to_coordinate_system: str,
     modes: _Modes,
     cluster_key: str | None,
@@ -859,12 +859,12 @@ def _add_spatialdata_wrapper(
     embedding_key_display_name: str,
 ) -> tuple[VitessceConfigDataset, str, str | None]:
     file_uuid = f"sdata_{uuid.uuid4()}"
-    labels_file_uuid: str | None = file_uuid if labels_layer is not None else None
+    labels_file_uuid: str | None = file_uuid if labels_name is not None else None
 
-    table_prefix = f"tables/{table_layer}" if table_layer is not None else None
+    table_prefix = f"tables/{table_name}" if table_name is not None else None
     needs_segmentation_obs_index = _needs_segmentation_obs_index(
         modes=modes,
-        labels_present=labels_layer is not None,
+        labels_present=labels_name is not None,
     )
     needs_obs_feature_matrix = (
         table_prefix is not None
@@ -885,9 +885,9 @@ def _add_spatialdata_wrapper(
 
     spatialdata_wrapper_kwargs: dict[str, object] = {
         "table_path": table_prefix,
-        "image_path": f"images/{img_layer}",
+        "image_path": f"images/{image_name}",
         "obs_segmentations_path": (
-            f"labels/{labels_layer}" if labels_layer is not None else None
+            f"labels/{labels_name}" if labels_name is not None else None
         ),
         "obs_feature_matrix_path": (
             f"{table_prefix}/X"
@@ -904,7 +904,7 @@ def _add_spatialdata_wrapper(
             else None
         ),
         "obs_set_names": [cluster_key_display_name] if modes.has_clusters else None,
-        "region": labels_layer,
+        "region": labels_name,
         "obs_embedding_paths": (
             [f"{table_prefix}/obsm/{embedding_key}"]
             if (
@@ -931,9 +931,9 @@ def _add_spatialdata_wrapper(
 
 def _from_spatialdata(
     sdata_path: str | Path,
-    img_layer: str | None = None,
-    labels_layer: str | None = None,
-    table_layer: str | None = None,
+    image_name: str | None = None,
+    labels_name: str | None = None,
+    table_name: str | None = None,
     base_dir: str | Path | None = None,
     name: str = "Observations",
     description: str = "Observations",
@@ -964,23 +964,23 @@ def _from_spatialdata(
     ----------
     sdata_path
         Path or URL to the SpatialData zarr root.
-    img_layer
+    image_name
         Image layer name under ``images`` in SpatialData.
         Required.
-    labels_layer
+    labels_name
         Labels layer name under ``labels`` in SpatialData.
         Required when table-driven visualizations are enabled.
         When table-driven visualizations are enabled, this layer should be
-        annotated by ``table_layer`` via ``region_key`` and ``instance_key``.
-    table_layer
+        annotated by ``table_name`` via ``region_key`` and ``instance_key``.
+    table_name
         Table layer name under ``tables`` in SpatialData.
         Required when feature matrix, heatmap, clusters, or embedding
         visualizations are enabled.
-        The table is expected to annotate ``labels_layer``:
+        The table is expected to annotate ``labels_name``:
         ``region_key`` is the key in ``adata.obs`` that specifies the region
-        (i.e. the ``labels_layer``), and ``instance_key`` is the key in
+        (i.e. the ``labels_name``), and ``instance_key`` is the key in
         ``adata.obs`` that specifies the instance (i.e. instance IDs in
-        ``labels_layer``).
+        ``labels_name``).
         If this annotation metadata is unavailable, Vitessce falls back to
         linking via the table ``obs`` index. Vitessce currently applies
         JavaScript ``parseInt`` to observation indices, so values like
@@ -1053,9 +1053,9 @@ def _from_spatialdata(
         If ``embedding_key_display_name`` is empty when ``embedding_key`` is provided.
         If ``center`` is provided but is not a 2-item tuple.
         If ``layer_opacity`` is outside ``[0, 1]``.
-        If ``img_layer`` is missing.
-        If table-driven visualization is requested but ``table_layer`` is missing.
-        If table-driven visualization is requested but ``labels_layer`` is missing.
+        If ``image_name`` is missing.
+        If table-driven visualization is requested but ``table_name`` is missing.
+        If table-driven visualization is requested but ``labels_name`` is missing.
         If ``sdata_path`` is invalid (empty or unsupported URL format).
     """
     _validate_feature_type(feature_type)
@@ -1081,23 +1081,23 @@ def _from_spatialdata(
         segmentation_stroke_width=segmentation_stroke_width,
     )
 
-    if img_layer is None:
-        raise ValueError("img_layer is required when sdata is provided.")
-    if modes.needs_adata and table_layer is None:
+    if image_name is None:
+        raise ValueError("image_name is required when sdata is provided.")
+    if modes.needs_adata and table_name is None:
         raise ValueError(
-            "table_layer is required when visualize_feature_matrix=True, "
+            "table_name is required when visualize_feature_matrix=True, "
             "visualize_heatmap=True or cluster_key/embedding_key is provided."
         )
-    if modes.needs_adata and labels_layer is None:
+    if modes.needs_adata and labels_name is None:
         raise ValueError(
-            "labels_layer is required when visualize_feature_matrix=True, "
+            "labels_name is required when visualize_feature_matrix=True, "
             "visualize_heatmap=True or cluster_key/embedding_key is provided."
         )
-    if table_layer is not None and not modes.needs_adata:
+    if table_name is not None and not modes.needs_adata:
         logger.warning(
-            "table_layer was provided, but visualize_feature_matrix=False, "
+            "table_name was provided, but visualize_feature_matrix=False, "
             "visualize_heatmap=False and cluster_key/embedding_key are None; "
-            "table layer is ignored."
+            "table is ignored."
         )
 
     normalized_sdata_path, is_sdata_remote = _normalize_path_or_url(
@@ -1120,9 +1120,9 @@ def _from_spatialdata(
         name=name,
         sdata_path=normalized_sdata_path,
         is_sdata_remote=is_sdata_remote,
-        img_layer=img_layer,
-        labels_layer=labels_layer,
-        table_layer=table_layer,
+        image_name=image_name,
+        labels_name=labels_name,
+        table_name=table_name,
         to_coordinate_system=to_coordinate_system,
         modes=modes,
         cluster_key=cluster_key,
@@ -1153,7 +1153,7 @@ def _from_spatialdata(
 
 
 def _from_split_sources(
-    img_source: str | Path,
+    image_source: str | Path,
     labels_source: str | Path | None = None,
     adata_source: str | Path | None = None,
     adata_as_spots: bool = False,
@@ -1190,7 +1190,7 @@ def _from_split_sources(
 
     Parameters
     ----------
-    img_source
+    image_source
         Path/URL to an OME-Zarr image.
         Expected axes order is ``(c, y, x)``.
     labels_source
@@ -1336,8 +1336,8 @@ def _from_split_sources(
             "spot_radius_size_micron needs to be specified if adata_as_spots=True."
         )
 
-    normalized_img_source, is_img_remote = _normalize_path_or_url(
-        img_source, "img_source"
+    normalized_image_source, is_image_remote = _normalize_path_or_url(
+        image_source, "image_source"
     )
     if labels_source is not None:
         normalized_labels_source, is_labels_remote = _normalize_path_or_url(
@@ -1384,7 +1384,7 @@ def _from_split_sources(
     )
 
     all_sources_remote = (
-        is_img_remote
+        is_image_remote
         and (normalized_labels_source is None or is_labels_remote)
         and (normalized_adata_source is None or is_adata_remote)
     )
@@ -1401,10 +1401,10 @@ def _from_split_sources(
     dataset, file_uuid, labels_file_uuid = _add_raw_wrappers(
         vc,
         name=name,
-        img_source=normalized_img_source,
+        image_source=normalized_image_source,
         labels_source=normalized_labels_source,
         adata_source=normalized_adata_source,
-        is_img_remote=is_img_remote,
+        is_image_remote=is_image_remote,
         is_labels_remote=is_labels_remote,
         is_adata_remote=is_adata_remote,
         adata_as_spots=modes.adata_as_spots,

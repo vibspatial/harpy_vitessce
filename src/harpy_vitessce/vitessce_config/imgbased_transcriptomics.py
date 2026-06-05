@@ -8,9 +8,9 @@ from ._observations import _from_spatialdata, _from_split_sources
 
 def imgbased_transcriptomics_from_spatialdata(
     sdata_path: str | Path,
-    img_layer: str | None = None,
-    labels_layer: str | None = None,
-    table_layer: str | None = None,
+    image_name: str | None = None,
+    labels_name: str | None = None,
+    table_name: str | None = None,
     base_dir: str | Path | None = None,
     name: str = "Image-based transcriptomics",
     description: str = "Image-based transcriptomics",
@@ -35,9 +35,9 @@ def imgbased_transcriptomics_from_spatialdata(
     """Build an image-based transcriptomics config from a SpatialData source."""
     return _from_spatialdata(
         sdata_path=sdata_path,
-        img_layer=img_layer,
-        labels_layer=labels_layer,
-        table_layer=table_layer,
+        image_name=image_name,
+        labels_name=labels_name,
+        table_name=table_name,
         base_dir=base_dir,
         name=name,
         description=description,
@@ -63,7 +63,7 @@ def imgbased_transcriptomics_from_spatialdata(
 
 
 def imgbased_transcriptomics_from_split_sources(
-    img_source: str | Path,
+    image_source: str | Path,
     labels_source: str | Path | None = None,
     adata_source: str | Path | None = None,
     adata_as_spots: bool = False,
@@ -95,7 +95,7 @@ def imgbased_transcriptomics_from_split_sources(
 ) -> VitessceConfig:
     """Build an image-based transcriptomics config from split sources."""
     return _from_split_sources(
-        img_source=img_source,
+        image_source=image_source,
         labels_source=labels_source,
         adata_source=adata_source,
         adata_as_spots=adata_as_spots,
