@@ -154,6 +154,22 @@ def _validate_segmentation_style(
         ) from exc
 
 
+def _needs_segmentation_obs_index(
+    *,
+    modes: _Modes,
+    labels_present: bool,
+) -> bool:
+    # Workaround for a Vitessce bug: without a matrix obs index, sparse
+    # bitmask IDs can be mapped as if they were dense 1..N table rows. Exposing
+    # X is harmless for static segmentation colors, so use one broad condition.
+    return (
+        labels_present
+        and modes.has_clusters
+        and not modes.has_matrix_data
+        and not modes.adata_as_spots
+    )
+
+
 def _apply_layout(vc: VitessceConfig, *, views: _Views) -> None:
     views.layer_controller.set_props(disableChannelsIfRgbDetected=False)
 
@@ -345,7 +361,16 @@ def _build_shared_visualization(
             spatial_zoom, spatial_target_x, spatial_target_y
         )
 
+    needs_segmentation_obs_index = _needs_segmentation_obs_index(
+        modes=modes,
+        labels_present=labels_file_uuid is not None,
+    )
     obs_color = None
+    feat_type = None
+    feat_val_type = None
+    obs_set_sel = None
+    obs_set_color = None
+    obs_highlight = None
     if modes.has_matrix_data and modes.has_clusters:
         (
             obs_type,
@@ -354,6 +379,8 @@ def _build_shared_visualization(
             obs_color,
             feat_sel,
             obs_set_sel,
+            obs_set_color,
+            obs_highlight,
         ) = vc.add_coordination(
             ct.OBS_TYPE,
             ct.FEATURE_TYPE,
@@ -361,6 +388,8 @@ def _build_shared_visualization(
             ct.OBS_COLOR_ENCODING,
             ct.FEATURE_SELECTION,
             ct.OBS_SET_SELECTION,
+            ct.OBS_SET_COLOR,
+            ct.OBS_HIGHLIGHT,
         )
         obs_type.set_value(OBS_TYPE_CELL)
         feat_type.set_value(modes.feature_type)
@@ -368,6 +397,8 @@ def _build_shared_visualization(
         obs_color.set_value(OBS_COLOR_CELL_SET_SELECTION)
         feat_sel.set_value(None)
         obs_set_sel.set_value(None)
+        obs_set_color.set_value(None)
+        obs_highlight.set_value(None)
 
         if views.spatial_plot_spots is not None:
             views.spatial_plot_spots.use_coordination(
@@ -377,6 +408,8 @@ def _build_shared_visualization(
                 obs_color,
                 feat_sel,
                 obs_set_sel,
+                obs_set_color,
+                obs_highlight,
             )
         else:
             views.spatial_plot.use_coordination(
@@ -386,6 +419,8 @@ def _build_shared_visualization(
                 obs_color,
                 feat_sel,
                 obs_set_sel,
+                obs_set_color,
+                obs_highlight,
             )
 
         if views.feature_list is not None:
@@ -397,7 +432,13 @@ def _build_shared_visualization(
                 feat_val_type,
             )
         if views.obs_sets is not None:
-            views.obs_sets.use_coordination(obs_type, obs_set_sel, obs_color)
+            views.obs_sets.use_coordination(
+                obs_type,
+                obs_set_sel,
+                obs_set_color,
+                obs_color,
+                obs_highlight,
+            )
         if views.heatmap is not None:
             views.heatmap.use_coordination(
                 obs_type,
@@ -406,6 +447,8 @@ def _build_shared_visualization(
                 feat_sel,
                 obs_color,
                 obs_set_sel,
+                obs_set_color,
+                obs_highlight,
             )
         if views.umap is not None:
             views.umap.use_coordination(
@@ -415,6 +458,8 @@ def _build_shared_visualization(
                 obs_color,
                 feat_sel,
                 obs_set_sel,
+                obs_set_color,
+                obs_highlight,
             )
     elif modes.has_matrix_data:
         (
@@ -496,23 +541,85 @@ def _build_shared_visualization(
             )
 
     elif modes.has_clusters:
-        obs_type, obs_color, obs_set_sel = vc.add_coordination(
-            ct.OBS_TYPE,
-            ct.OBS_COLOR_ENCODING,
-            ct.OBS_SET_SELECTION,
-        )
+        if needs_segmentation_obs_index:
+            # Part of the Vitessce bitmask-index workaround: the hidden
+            # obsFeatureMatrix provides the real obs index, and these scopes
+            # let the segmentation channel match that loader.
+            (
+                obs_type,
+                feat_type,
+                feat_val_type,
+                obs_color,
+                obs_set_sel,
+                obs_set_color,
+                obs_highlight,
+            ) = vc.add_coordination(
+                ct.OBS_TYPE,
+                ct.FEATURE_TYPE,
+                ct.FEATURE_VALUE_TYPE,
+                ct.OBS_COLOR_ENCODING,
+                ct.OBS_SET_SELECTION,
+                ct.OBS_SET_COLOR,
+                ct.OBS_HIGHLIGHT,
+            )
+            feat_type.set_value(modes.feature_type)
+            feat_val_type.set_value(FEATURE_VALUE_TYPE)
+        else:
+            (
+                obs_type,
+                obs_color,
+                obs_set_sel,
+                obs_set_color,
+                obs_highlight,
+            ) = vc.add_coordination(
+                ct.OBS_TYPE,
+                ct.OBS_COLOR_ENCODING,
+                ct.OBS_SET_SELECTION,
+                ct.OBS_SET_COLOR,
+                ct.OBS_HIGHLIGHT,
+            )
         obs_type.set_value(OBS_TYPE_CELL)
         obs_color.set_value(OBS_COLOR_CELL_SET_SELECTION)
         obs_set_sel.set_value(None)
+        obs_set_color.set_value(None)
+        obs_highlight.set_value(None)
 
-        if views.spatial_plot_spots is not None:
-            views.spatial_plot_spots.use_coordination(obs_type, obs_color, obs_set_sel)
-        else:
-            views.spatial_plot.use_coordination(obs_type, obs_color, obs_set_sel)
+        cluster_view_scopes = (
+            (
+                obs_type,
+                feat_type,
+                feat_val_type,
+                obs_color,
+                obs_set_sel,
+                obs_set_color,
+                obs_highlight,
+            )
+            if needs_segmentation_obs_index
+            else (
+                obs_type,
+                obs_color,
+                obs_set_sel,
+                obs_set_color,
+                obs_highlight,
+            )
+        )
+        cluster_spatial_view = (
+            views.spatial_plot_spots
+            if views.spatial_plot_spots is not None
+            else views.spatial_plot
+        )
+        assert cluster_spatial_view is not None
+        cluster_spatial_view.use_coordination(*cluster_view_scopes)
         if views.obs_sets is not None:
-            views.obs_sets.use_coordination(obs_type, obs_set_sel, obs_color)
+            views.obs_sets.use_coordination(
+                obs_type,
+                obs_set_sel,
+                obs_set_color,
+                obs_color,
+                obs_highlight,
+            )
         if views.umap is not None:
-            views.umap.use_coordination(obs_type, obs_color, obs_set_sel)
+            views.umap.use_coordination(*cluster_view_scopes)
     elif modes.has_embedding:
         (obs_type,) = vc.add_coordination(ct.OBS_TYPE)
         obs_type.set_value(OBS_TYPE_CELL)
@@ -564,6 +671,15 @@ def _build_shared_visualization(
             segmentation_channel["obsColorEncoding"] = (
                 obs_color  # should we not always color? Maybe not because rendering is not great.
             )
+            if obs_set_sel is not None:
+                segmentation_channel["obsSetSelection"] = obs_set_sel
+            if obs_set_color is not None:
+                segmentation_channel["obsSetColor"] = obs_set_color
+            if obs_highlight is not None:
+                segmentation_channel["obsHighlight"] = obs_highlight
+            if needs_segmentation_obs_index:
+                segmentation_channel["featureType"] = feat_type
+                segmentation_channel["featureValueType"] = feat_val_type
         if modes.has_matrix_data and not modes.adata_as_spots:
             segmentation_channel["featureValueColormapRange"] = [0, 1]
 
@@ -673,8 +789,17 @@ def _add_raw_wrappers(
 
     if modes.needs_adata:
         assert adata_source is not None
+        # Work around a Vitessce bug where bitmask IDs fall back to dense
+        # 1..N mapping unless X exposes the real sparse obs index.
+        needs_segmentation_obs_index = _needs_segmentation_obs_index(
+            modes=modes,
+            labels_present=labels_source is not None,
+        )
+        needs_obs_feature_matrix = (
+            modes.has_matrix_data or needs_segmentation_obs_index
+        )
         adata_wrapper_kwargs: dict[str, object] = {
-            "obs_feature_matrix_path": "X" if modes.has_matrix_data else None,
+            "obs_feature_matrix_path": "X" if needs_obs_feature_matrix else None,
             "coordination_values": {"obsType": OBS_TYPE_CELL},
         }
         if adata_as_spots:
@@ -682,7 +807,7 @@ def _add_raw_wrappers(
             adata_wrapper_kwargs["obs_locations_path"] = f"obsm/{spatial_key}"
         else:
             adata_wrapper_kwargs["obs_locations_path"] = f"obsm/{spatial_key}"
-        if modes.has_matrix_data:
+        if needs_obs_feature_matrix:
             adata_wrapper_kwargs["coordination_values"].update(
                 {
                     "featureType": modes.feature_type,
@@ -725,12 +850,20 @@ def _add_spatialdata_wrapper(
     labels_file_uuid: str | None = file_uuid if labels_layer is not None else None
 
     table_prefix = f"tables/{table_layer}" if table_layer is not None else None
+    needs_segmentation_obs_index = _needs_segmentation_obs_index(
+        modes=modes,
+        labels_present=labels_layer is not None,
+    )
+    needs_obs_feature_matrix = (
+        table_prefix is not None
+        and (modes.has_matrix_data or needs_segmentation_obs_index)
+    )
 
     file_coordination_values: dict[str, object] = {
         "obsType": OBS_TYPE_CELL,
         "fileUid": file_uuid,
     }
-    if modes.has_matrix_data:
+    if needs_obs_feature_matrix:
         file_coordination_values.update(
             {
                 "featureType": modes.feature_type,
@@ -746,7 +879,7 @@ def _add_spatialdata_wrapper(
         ),
         "obs_feature_matrix_path": (
             f"{table_prefix}/X"
-            if (modes.has_matrix_data and table_prefix is not None)
+            if needs_obs_feature_matrix
             else None
         ),
         "obs_set_paths": (
