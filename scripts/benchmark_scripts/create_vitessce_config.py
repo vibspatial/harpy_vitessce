@@ -13,10 +13,7 @@ load_dotenv(Path(__file__).resolve().parents[2] / ".env", override=False)
 
 
 URL_S3 = "https://objectstor.vib.be"
-S3_PATH = (
-    "/spatial-hackathon-public/"
-    "UT_benchmark"
-)
+S3_PATH = "/utbenchmark-public-2026-0008"
 
 
 def _none_or_str(value: str | None) -> str | None:
